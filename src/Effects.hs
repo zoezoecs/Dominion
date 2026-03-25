@@ -10,6 +10,7 @@ import qualified Data.Map as Map
 import Base
 
 
+-- Design choice: all cards have ids and aren't just handled as cards.
 newtype Card = MkCard Int deriving Eq
 data CardFace = Copper | Curse | Estate | Silver | Duchy | Gold | Province |
                 Cellar | Chapel | Moat | Harbinger | Merchant | Vassal | Village |
@@ -47,6 +48,12 @@ data Stacks m a where
   DrawTo :: Position -> Position -> Stacks m (Maybe Card)
   CardToPos :: Card -> Position -> Stacks m ()
 makeSem ''Stacks
+-- Interface: you can initialise cards into various positions and then move them between positions. You can query for a cards location and query a position. 
+-- You can draw a specific card out and place it back where it came from, or randomly in a deck.
+-- How do we specify how to move them? How do we handle information?
+-- Use random number generator, with drawing from top and bottom representing dirac generator?
+-- Cards can be in ordered piles or unordered collections
+
 
 data BoardStateRead m a where
   GetPlayers :: BoardStateRead m (Map Player ())
@@ -108,11 +115,20 @@ data Log m a where
   LogDiscard :: Player -> Log m Card
   LogReveal :: Player -> Card -> Log m Card
 makeSem ''Log
+-- Design choice: Messages to clients entirely through separate messages, and logs are reinterpreted from effects
+-- Partial information managed by different messages with less information, no state tracking, no ability to refer to
+-- previous messages for granular information (the card that was drawn 2 turns ago was a ...)
+-- Clients don't reconstruct state, they just display the required information and collect the moves.
+-- Clients don't see the card logic causality, they just see streams of events and must infer themselves.
+-- How to make sure enough information gets through? We need a protocol.
+
+
 
 data BoardInit m a where
   SetSupply :: Map CardFace Int -> BoardInit m ()
   SetHand :: Map CardFace Int -> BoardInit m () -- NOTE: DOES NOT INCLUDE COPPER? COPPER IS DRAWN FROM THE TOTAL, ESTATES ARENT.
 makeSem ''BoardInit
+-- This is a stupid effect
 
 -- Obvious design choice: Separate player IO and clients out from server/central logic.
 data PlayerIO m a where
@@ -124,5 +140,17 @@ data PlayerIO m a where
 makeSem ''PlayerIO
 
 data Reaction m = Reaction (CardEffects m () -> Bool) (m ())
+-- Design choice: Reaction effects checked once per type of trigger, at the interpretation of the triggerable event.
+-- Since most reaction effects are due to the same few triggers, its not worth implementing a trigger system that checks every effect and 
+-- potentially arbitrarily `intercept`s the interpretation
+-- That would support some arbitrary intercepting rules modifying gameplay, which is unnecessarily complex code permitted by the types.
+-- Instead, we are going to hard code a mechanism for blocking attacks, and place several places where reactions will be checked for.
+-- Possibilities:
+-- 1. Listeners and event emitters
+-- 2. Conditions and effects check for conditions/reactions via an (event/boolean check)
+-- 3. ...adding checks in the state, I guess.
+-- 4. Rule combinators/overriding/biased monoids
+-- 5. Emit an event for an attack into a big events datatype
+
 
 type CardSemantics = forall r. Members [BoardStateRead, CardEffects, PlayerIO] r => Player -> Card -> Sem r ()
