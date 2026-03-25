@@ -3,8 +3,8 @@ module Effects where
 
 import Polysemy
 import Control.Monad
-import Data.Map (Map)
 import Data.Maybe
+import Data.Map (Map)
 import qualified Data.Map as Map
 
 import Base
@@ -100,8 +100,6 @@ applyTo f xs = mapM f =<< xs
 applyToOthers :: (Member CardEffects r, Member BoardStateRead r) => Player -> (Player -> Sem r a) -> Sem r (Map Player a)
 applyToOthers player f = applyTo f (dupKey . Map.delete player <$> getPlayers)
 
-data Reaction m = Reaction (CardEffects m () -> Bool) (m ())
-
 data Log m a where
   LogPlayerRoundStart :: Player -> Log m ()
   LogBuy :: Player -> CardFace -> Log m Card
@@ -125,20 +123,6 @@ data PlayerIO m a where
   SendInfo :: Player -> PlayerIO m ()
 makeSem ''PlayerIO
 
-type CardSemantics = forall r. Members [BoardStateRead, CardEffects, PlayerIO] r => Player -> Card -> Sem r ()
+data Reaction m = Reaction (CardEffects m () -> Bool) (m ())
 
--- Obvious design choice: state is a big datatype
-data GameState = MkGameState {
-  players :: [Player],
-  blocks :: Map Player Bool,
-  current_player :: Player,
-  current_actions :: Int,
-  current_buys :: Int,
-  current_currency :: Int
-  -- reactions :: [Reaction m]
-}
-modActions n gs = gs{current_actions=n+current_actions gs}
-modBuys n gs = gs{current_buys=n+current_buys gs}
-modCurrency n gs = gs{current_currency=n+current_currency gs}
-setBlocks :: Player -> Bool -> GameState -> GameState
-setBlocks pl b gs = gs{blocks=Map.insert pl b (blocks gs)}
+type CardSemantics = forall r. Members [BoardStateRead, CardEffects, PlayerIO] r => Player -> Card -> Sem r ()

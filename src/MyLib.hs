@@ -77,7 +77,6 @@ import GameLoop
 -- Cavalry/Villa: Buy phase back to action
 
 
-
 initGS :: [Player] -> GameState
 initGS players = MkGameState {players = players,
   blocks = constMap players False,

@@ -1,14 +1,30 @@
 module Interpreters where
 
 import Polysemy
-import Polysemy.Input
-import Polysemy.Output
 import Polysemy.State 
 import Control.Monad
+import Data.Map (Map)
+import qualified Data.Map as Map
 
 import Base
 import Effects
 import Cards
+
+-- Obvious design choice: state is a big datatype
+data GameState = MkGameState {
+  players :: [Player],
+  blocks :: Map Player Bool,
+  current_player :: Player,
+  current_actions :: Int,
+  current_buys :: Int,
+  current_currency :: Int
+  -- reactions :: [Reaction m]
+}
+modActions n gs = gs{current_actions=n+current_actions gs}
+modBuys n gs = gs{current_buys=n+current_buys gs}
+modCurrency n gs = gs{current_currency=n+current_currency gs}
+setBlocks :: Player -> Bool -> GameState -> GameState
+setBlocks pl b gs = gs{blocks=Map.insert pl b (blocks gs)}
 
 interpCardEffects :: Members '[Stacks, State GameState, Log, PlayerIO, BoardStateRead] r => Sem (CardEffects : r) a -> Sem r a
 interpCardEffects = interpret $ \case
