@@ -75,7 +75,7 @@ library
     exposed-modules:  MyLib, Test
 
     -- Modules included in this library but not exported.
-    -- other-modules:
+    other-modules: GameLoop, Effects, Cards, Interpreters, Base, Data
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
