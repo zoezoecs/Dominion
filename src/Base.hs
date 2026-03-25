@@ -16,3 +16,6 @@ xs !? n
   | otherwise = foldr (\x r k -> case k of
                                    0 -> Just x
                                    _ -> r (k-1)) (const Nothing) xs n
+
+countElem :: Eq a => a -> [a] -> Int
+countElem i = length . filter (i==)

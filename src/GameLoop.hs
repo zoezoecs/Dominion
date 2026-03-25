@@ -1,15 +1,11 @@
 module GameLoop where
 
 import Polysemy
-import Polysemy.Input
-import Polysemy.Output
-import Polysemy.State
 import Control.Monad.Loops ( anyM, unfoldM )
 import Control.Monad
 import Data.Function
 import Data.Either
 import Data.Maybe
-import Data.List ( (\\) )
 import Data.Map (Map)
 import qualified Data.Map as Map
 
@@ -56,7 +52,7 @@ newHand :: Member BoardStateEdit r => Player -> Sem r [Card]
 newHand player = discardHandCleanup player >> drawTurnStart player 5
 
 -- Bool signals game over
-playerRound :: (Member BoardStateEdit r, Member BoardStateRead r, Member PlayerIO r, Member PlayerIO r) => Player -> Sem r Bool
+playerRound :: Members '[BoardStateEdit, BoardStateRead, PlayerIO, PlayerIO] r => Player -> Sem r Bool
 playerRound player =
   startingResources player >>
   repeatAction (playOneAction player) >>
@@ -65,17 +61,15 @@ playerRound player =
   newHand player >>
   isGameOver
 
-setInitialGameState :: (Member BoardInit r, Member BoardStateEdit r, Member CardEffects r) => [Player] -> [CardFace] -> Sem r ()
-setInitialGameState players kingdomCards = do
-  void $ setHand (Map.singleton Estate 3)
-  void $ setSupply (initialBaseSupply (length players) `Map.union` constMap kingdomCards 10)
+setInitialGameState :: Members '[BoardStateEdit, CardEffects] r => [Player] -> Sem r ()
+setInitialGameState players = do
   replicateM_ 5 $ forM players (`gainCard` Copper)
   forM_ players newHand
 
 playUntilGameOver :: Monad m => (player -> m Bool) -> [player] -> m ()
 playUntilGameOver f xs = void $ anyM f xs
 
-playGame :: (Member BoardStateEdit r, Member BoardStateRead r, Member BoardInit r, Member PlayerIO r, Member PlayerIO r, Member CardEffects r) => [Player] -> [CardFace] -> Sem r ()
-playGame players kingdoms =
-  setInitialGameState players kingdoms >>
+playGame :: Members '[BoardStateEdit, BoardStateRead, PlayerIO, CardEffects] r => [Player] -> Sem r ()
+playGame players =
+  setInitialGameState players >>
   playUntilGameOver playerRound (cycle players)

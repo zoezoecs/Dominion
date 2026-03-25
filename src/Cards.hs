@@ -9,15 +9,21 @@ import qualified Data.Map as Map
 import Effects
 import Base
 
--- TODO: Make this an effect?
+-- TODO: Think about extensibility vs guarantees with where this data goes...
+getFace :: Card -> CardFace
+getFace (MkCard _ face) = face
+getCardVP :: Card -> Int
+getCardVP = getFaceVP . getFace
+getFaceVP :: CardFace -> Int
+getFaceVP Province = 6
+getFaceVP Duchy = 3
+getFaceVP Estate = 1
+getFaceVP _ = 0
+
 getTypes :: CardFace -> [CardTypes]
 getTypes = undefined
-getReaction :: CardFace -> (Reaction m)
+getReaction :: CardFace -> Reaction m
 getReaction = undefined
-getFace :: Card -> CardFace
-getFace = undefined
-getCardVP :: Card -> Int
-getCardVP = undefined
 getEffect :: CardFace -> CardSemantics
 getEffect = undefined
 

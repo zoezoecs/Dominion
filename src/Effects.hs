@@ -11,13 +11,13 @@ import Base
 
 
 -- Design choice: all cards have ids and aren't just handled as cards.
-newtype Card = MkCard Int deriving Eq
+data Card = MkCard Int CardFace deriving (Eq, Ord)
 data CardFace = Copper | Curse | Estate | Silver | Duchy | Gold | Province |
                 Cellar | Chapel | Moat | Harbinger | Merchant | Vassal | Village |
                 Workshop | Bureaucrat | Gardens | Militia |  Moneylender | Poacher |
                 Remodel | Smithy | ThroneRoom | Bandit | CouncilRoom | Festival | Laboratory |
                 Library | Market | Mine | Sentry | Witch | Artisan  deriving (Eq, Ord)
-data CardTypes = CardAttack | CardReaction | CardAction | CardTreasure | CardVictory deriving Eq
+data CardTypes = CardAttack | CardReaction | CardAction | CardTreasure | CardVictory deriving (Eq, Ord)
 newtype Player = MkPlayer Int deriving (Ord, Eq)
 
 -- Obvious design choice: Representing errors and card positions as data
@@ -25,7 +25,7 @@ data InvalidMove = NoActions | CardPositionIncorrect
 data InvalidBuy = NoMoney | BadGain InvalidGain
 data InvalidGain = NotInKingdom | EmptySupply | GainError
 
-data PlayerPosition = PlayerDeck | PlayerDiscardPile | PlayerHand | PlayerInPlay | PlayerSetAside
+data PlayerPosition = PlayerDeck | PlayerDiscardPile | PlayerHand | PlayerInPlay | PlayerSetAside deriving (Eq, Ord)
 data Kingdom = Kingdom
 data Treasure = Treasure
 data CurseSupply = CurseSupplye
@@ -34,7 +34,7 @@ data BasicSupply = TreasureSupply | VictorySupply | CurseSupply
 -- If I break the card faces up into subsets its annoying to write "Gains a Copper"
 -- But if I do this its a little annoying to say "Gain a Treasure"
 -- c.f. Gain a treasure costing up to..
-data Position = PlayerCard Player PlayerPosition | Supply CardFace | Trash
+data Position = PlayerCard Player PlayerPosition | Supply CardFace | Trash deriving (Eq, Ord)
 
 allPositions :: [PlayerPosition]
 allPositions = [PlayerDeck, PlayerDiscardPile, PlayerHand, PlayerInPlay, PlayerSetAside]
@@ -42,7 +42,7 @@ allPositions = [PlayerDeck, PlayerDiscardPile, PlayerHand, PlayerInPlay, PlayerS
 -- its not clear why we wouldn't just reinterpret straight into a state monad
 data Stacks m a where
   ActiveKingdoms :: Stacks m [CardFace] -- TODO: abstraction barrier broken
-  GetStack :: Position -> Stacks m [Card]
+  GetStack :: Position -> Stacks m (Maybe [Card])
   ShuffleStack :: Position -> Stacks m ()
   StackOnto :: Position -> Position -> Stacks m ()
   DrawTo :: Position -> Position -> Stacks m (Maybe Card)
@@ -121,14 +121,6 @@ makeSem ''Log
 -- Clients don't reconstruct state, they just display the required information and collect the moves.
 -- Clients don't see the card logic causality, they just see streams of events and must infer themselves.
 -- How to make sure enough information gets through? We need a protocol.
-
-
-
-data BoardInit m a where
-  SetSupply :: Map CardFace Int -> BoardInit m ()
-  SetHand :: Map CardFace Int -> BoardInit m () -- NOTE: DOES NOT INCLUDE COPPER? COPPER IS DRAWN FROM THE TOTAL, ESTATES ARENT.
-makeSem ''BoardInit
--- This is a stupid effect
 
 -- Obvious design choice: Separate player IO and clients out from server/central logic.
 data PlayerIO m a where

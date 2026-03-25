@@ -3,6 +3,7 @@ module Data where
 import Data.Map (Map)
 import qualified Data.Map as Map
 
+import Base
 import Effects
 
 initialBaseSupply :: Int -> Map CardFace Int
@@ -47,3 +48,9 @@ initialBaseSupply 6 = Map.fromList [
   (Province, 18) ,
   (Curse,    50)]
 initialBaseSupply _ = undefined
+
+initialHand :: Map CardFace Int
+initialHand = Map.singleton Estate 3
+
+initialMap :: [Player] -> [CardFace] -> Map CardFace Int
+initialMap players kingdomCards = initialBaseSupply (length players) `Map.union` constMap kingdomCards 10
