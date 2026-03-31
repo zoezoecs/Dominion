@@ -1,10 +1,12 @@
 module MyLib (main) where
 
 import Polysemy
+import Polysemy.Output
 import Polysemy.State
+import Control.Monad
 import Data.Map (Map)
 import qualified Data.Map as Map
-
+ 
 import Base
 import Data
 import Interpreters
@@ -21,29 +23,70 @@ import GameLoop
 -- Cavalry/Villa: Buy phase back to action
 
 initGS :: [Player] -> GameState
-initGS players = MkGameState {players = players,
+initGS players = MkGameState {all_players = players,
   blocks = constMap players False,
-  current_player = minimum players,
   current_actions = 0,
   current_buys = 0,
   current_currency = 0
   -- reactions :: [Reaction m]
 }
 
-initStacks :: [Player] -> [CardFace] -> Map Position [Card]
-initStacks pl cf = wah1a `Map.union` wah3
-  where 
-    wah1a = Map.fromList $ map (\x -> (x,[])) $ liftA2 PlayerCard pl allPositions
-    wah1b = [(PlayerCard p PlayerHand, [Estate, Estate, Estate]) | p <- pl]
-    wah2 = Map.mapKeys Supply $ initialMap pl cf
-    wah3 = Map.fromList [(Trash, [])]
+stacksConfig :: [Player] -> PileConfig []
+stacksConfig players = PileConfig { 
+                 refillFrom = Map.fromList [(PlayerCard pl PlayerDeck, PlayerCard pl PlayerDiscardPile) | pl <- players ],
+                 shuffleOnRefill = [PlayerCard pl PlayerDeck | pl <- players]
+                 }
 
-main :: Members '[PlayerIO, Log] r => [Player] -> [CardFace] -> Sem r ()
-main pl cf = evalState @(Map Position [Card]) (initStacks pl cf) .
-             interpStacks .
+-- TODO: Separate initialisation and card creation? State init is annoying me...
+getFresh :: Member (State Int) r => Sem r Int
+getFresh = modify (+(1::Int)) >> get
+
+createCard :: Member (State Int) r => CardFace -> Sem r Card
+createCard cf = flip MkCard cf <$> getFresh
+
+createCards' :: Member (State Int) r => (CardFace, Int) -> Sem r [Card]
+createCards' (cf, n) = replicateM n (createCard cf)
+
+createCards'' :: Member (State Int) r => [(CardFace, Int)] -> Sem r [Card]
+createCards'' xs = join <$> mapM createCards' xs
+
+createCards :: Member (State Int) r => Map Position [(CardFace, Int)] -> Sem r (Map Position [Card])
+createCards = mapM createCards''
+
+initStacks :: [Player] -> [CardFace] -> Map Position [Card]
+initStacks pl cf = run . evalState @Int 0 . createCards $ boardInitState pl cf
+
+main :: [Player] -> [CardFace] -> IO ([String], ())
+main pl cf = runM .
+             interpPlayerIO .
+             interpRandomWithSeed 4 . -- interpRandomGlobal
+             interpRandomShuffle .
+             runOutputList .
+             logToString .
+             evalState @(Map Position [Card]) (initStacks pl cf) .
+             interpStacks (stacksConfig pl).
              evalState @GameState (initGS pl) .
              interpStateRead .
+             interpGameRules .
              interpCardEffects .
-             interpStateWrite $ playGame pl
+             interpGameLoop .
+             logEffects .
+             logTurn $
+             playGame
 
--- TODO: Log interception, reactions, add all cards, IO.
+-- TODO: 
+-- Implement reactions, add all cards
+-- Implement PlayerIO and data serialisation
+
+-- consider card semantics locations
+-- Consider Data formatting json vs haskell
+
+-- temporary id scoping for information in log
+-- log per player information
+
+-- Stacks and bad locations
+
+-- Rules validation locations and coverage (c.f. Stacks and CardEffects impossible effect defaulting to signalled ignore)
+-- Splitting interpreter logic correctly
+-- Commutativity tests
+-- Check the thing actually works lmao

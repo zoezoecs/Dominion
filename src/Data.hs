@@ -5,6 +5,7 @@ import qualified Data.Map as Map
 
 import Base
 import Effects
+import Data.List
 
 initialBaseSupply :: Int -> Map CardFace Int
 initialBaseSupply 2 = Map.fromList [
@@ -49,8 +50,13 @@ initialBaseSupply 6 = Map.fromList [
   (Curse,    50)]
 initialBaseSupply _ = undefined
 
-initialHand :: Map CardFace Int
-initialHand = Map.singleton Estate 3
-
 initialMap :: [Player] -> [CardFace] -> Map CardFace Int
 initialMap players kingdomCards = initialBaseSupply (length players) `Map.union` constMap kingdomCards 10
+
+boardInitState :: [Player] -> [CardFace] -> Map Position [(CardFace, Int)]
+boardInitState pl cf = Map.unions [initPlayerPos, setPlayerCards, initSetSupply, initSetTrash]
+  where
+    initPlayerPos = Map.fromList $ map (\x -> (x,[])) $ liftA2 PlayerCard pl allPositions
+    setPlayerCards = Map.fromList [(PlayerCard p PlayerHand, [(Estate, 3)]) | p <- pl]
+    initSetSupply = Map.mapKeys Supply $ fmap singleton $ Map.mapWithKey (,) $ initialMap pl cf
+    initSetTrash = Map.fromList [(Trash, [])]

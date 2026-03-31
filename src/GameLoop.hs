@@ -9,14 +9,12 @@ import Data.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
 
-import Base
 import Effects
-import Data
 -- discardHand' :: (Member CardEffects r, Member BoardStateRead r) => Player -> Sem r ()
 -- discardHand' player = void $ applyTo (discard player) (getHand player)
 
 -- Prompt the player to act, Maybe signals choosing to not act
-playOneAction' :: (Member BoardStateEdit r, Member PlayerIO r) => Player -> Sem r (Maybe Card) -> Sem r (Maybe Card)
+playOneAction' :: (Member GameLoop r, Member PlayerIO r) => Player -> Sem r (Maybe Card) -> Sem r (Maybe Card)
 playOneAction' player if_invalid = do
   mcard <- getAction player
   case mcard of
@@ -28,7 +26,7 @@ playOneAction' player if_invalid = do
         Right () -> return $ Just card
 
 -- Prompt the player to buy, Maybe signals choosing to not buy
-playOneBuy' :: (Member BoardStateEdit r, Member PlayerIO r) => Player -> Sem r (Maybe Card) -> Sem r (Maybe Card)
+playOneBuy' :: (Member GameLoop r, Member PlayerIO r) => Player -> Sem r (Maybe Card) -> Sem r (Maybe Card)
 playOneBuy' player if_invalid = do
   mcardface <- getBuy player
   case mcardface of
@@ -39,37 +37,53 @@ playOneBuy' player if_invalid = do
       Left err   -> if_invalid
       Right card -> return $ Just card
 
-playOneAction :: (Member BoardStateEdit r, Member PlayerIO r) => Player -> Sem r (Maybe Card)
+playOneTreasure' :: (Member GameLoop r, Member PlayerIO r) => Player -> Sem r (Maybe Int) -> Sem r (Maybe Int)
+playOneTreasure' player if_invalid = do
+    mtreasure <- getPlayTreasure player
+    case mtreasure of
+        Nothing -> return Nothing
+        Just card -> do
+            msuccess <- playTreasure player card
+            case msuccess of
+                Left NotATresure -> if_invalid
+                Right n -> return $ Just n
+
+playOneAction :: (Member GameLoop r, Member PlayerIO r) => Player -> Sem r (Maybe Card)
 playOneAction player = fix $ playOneAction' player
 
-playOneBuy :: (Member BoardStateEdit r, Member PlayerIO r) => Player -> Sem r (Maybe Card)
+playOneTreasure :: (Member GameLoop r, Member PlayerIO r) => Player -> Sem r (Maybe Int)
+playOneTreasure player = fix $ playOneTreasure' player
+
+playOneBuy :: (Member GameLoop r, Member PlayerIO r) => Player -> Sem r (Maybe Card)
 playOneBuy player = fix $ playOneBuy' player
 
 repeatAction :: Monad m => m (Maybe a) -> m [a]
 repeatAction = unfoldM
 
-newHand :: Member BoardStateEdit r => Player -> Sem r [Card]
+newHand :: Member GameLoop r => Player -> Sem r [Card]
 newHand player = discardHandCleanup player >> drawTurnStart player 5
 
 -- Bool signals game over
-playerRound :: Members '[BoardStateEdit, BoardStateRead, PlayerIO, PlayerIO] r => Player -> Sem r Bool
+playerRound :: Members '[GameLoop, BoardStateRead, PlayerIO] r => Player -> Sem r Bool
 playerRound player =
   startingResources player >>
   repeatAction (playOneAction player) >>
-  -- TODO: When do I gain dollars?
+  repeatAction (playOneTreasure player) >>
   repeatAction (playOneBuy player) >>
   newHand player >>
   isGameOver
 
-setInitialGameState :: Members '[BoardStateEdit, CardEffects] r => [Player] -> Sem r ()
-setInitialGameState players = do
+setInitialGameState :: Members '[GameLoop, CardEffects, BoardStateRead] r => Sem r ()
+setInitialGameState = do
+  players <- Map.keys <$> getPlayers
   replicateM_ 5 $ forM players (`gainCard` Copper)
   forM_ players newHand
 
 playUntilGameOver :: Monad m => (player -> m Bool) -> [player] -> m ()
 playUntilGameOver f xs = void $ anyM f xs
 
-playGame :: Members '[BoardStateEdit, BoardStateRead, PlayerIO, CardEffects] r => [Player] -> Sem r ()
-playGame players =
-  setInitialGameState players >>
-  playUntilGameOver playerRound (cycle players)
+playGame :: Members '[GameLoop, BoardStateRead, PlayerIO, CardEffects] r => Sem r ()
+playGame = do
+    players <- Map.keys <$> getPlayers
+    setInitialGameState
+    playUntilGameOver playerRound (cycle players)

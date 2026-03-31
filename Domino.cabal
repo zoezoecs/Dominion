@@ -66,6 +66,7 @@ common polysemysettings
       , TypeApplications
       , TypeOperators
       , TypeFamilies
+      , StandaloneDeriving
 
 library
     -- Import common warning flags.
@@ -85,6 +86,11 @@ library
                       polysemy,
                       containers,
                       monad-loops^>=0.4.3,
+                      --MonadRandom^>=0.1.7,
+                      random-shuffle^>=0.0.4,
+                      random^>=1.2.1.1,
+                      mtl^>=2.3.1,
+                      polysemy-plugin^>=0.4.5.2,
 
 
     -- Directories containing source files.
