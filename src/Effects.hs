@@ -49,6 +49,22 @@ data Position = PlayerCard Player PlayerPosition | Supply CardFace | Trash deriv
 allPositions :: [PlayerPosition]
 allPositions = [PlayerDeck, PlayerDiscardPile, PlayerHand, PlayerInPlay, PlayerSetAside]
 
+-- Obvious design choice: state is a big datatype
+data GameState = MkGameState {
+  all_players :: [Player],
+  blocks :: Map Player Bool,
+  current_actions :: Int,
+  current_buys :: Int,
+  current_currency :: Int
+  -- reactions :: [Reaction m]
+}
+modActions n gs = gs{current_actions=n+current_actions gs}
+modBuys n gs = gs{current_buys=n+current_buys gs}
+modCurrency n gs = gs{current_currency=n+current_currency gs}
+
+setBlocks :: Player -> Bool -> GameState -> GameState
+setBlocks pl b gs = gs{blocks=Map.insert pl b (blocks gs)}
+
 -- its not clear why we wouldn't just reinterpret straight into a state monad
 data Stacks m a where
   ActivePositions :: Stacks m [Position] -- TODO: abstraction barrier broken
@@ -63,9 +79,11 @@ data PileConfig t = PileConfig
   { refillFrom  :: Map Position Position,   -- when empty, refill from here
     shuffleOnRefill :: t Position}          -- shuffle after refilling
 
+isSupply :: Position -> Maybe CardFace
 isSupply (Supply c) = Just c
 isSupply _ = Nothing
 
+getSupplies :: [Position] -> [CardFace]
 getSupplies = mapMaybe isSupply
 
 activeKingdoms :: Member Stacks r => Sem r [CardFace]

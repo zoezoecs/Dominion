@@ -1,5 +1,5 @@
-module Interpreters.Random where
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
+module Interpreters.Random where
 
 import Polysemy
 import Polysemy.Input

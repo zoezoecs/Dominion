@@ -20,7 +20,7 @@ playOneAction' player if_invalid = do
     Just card -> do
       mplay <- playFromHand player card
       case mplay of
-        Left err -> if_invalid
+        Left _ -> if_invalid
         Right () -> return $ Just card
 
 -- Prompt the player to buy, Maybe signals choosing to not buy
@@ -32,7 +32,7 @@ playOneBuy' player if_invalid = do
     Just cardface -> do
      mcard <- buyCard player cardface
      case mcard of
-      Left err   -> if_invalid
+      Left _   -> if_invalid
       Right card -> return $ Just card
 
 playOneTreasure' :: (Member GameLoop r, Member PlayerIO r) => Player -> Sem r (Maybe Int) -> Sem r (Maybe Int)

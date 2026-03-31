@@ -12,21 +12,6 @@ import Base
 import Effects
 import Cards
 
--- Obvious design choice: state is a big datatype
-data GameState = MkGameState {
-  all_players :: [Player],
-  blocks :: Map Player Bool,
-  current_actions :: Int,
-  current_buys :: Int,
-  current_currency :: Int
-  -- reactions :: [Reaction m]
-}
-modActions n gs = gs{current_actions=n+current_actions gs}
-modBuys n gs = gs{current_buys=n+current_buys gs}
-modCurrency n gs = gs{current_currency=n+current_currency gs}
-setBlocks :: Player -> Bool -> GameState -> GameState
-setBlocks pl b gs = gs{blocks=Map.insert pl b (blocks gs)}
-
 
 interpGameLoop :: Members '[Stacks, State GameState, BoardStateRead, GameRules, CardEffects] r => Sem (GameLoop : r) a -> Sem r a
 interpGameLoop = interpret $ \case
@@ -114,9 +99,6 @@ interpReaction :: Sem (Reaction : r) a -> Sem r a
 interpReaction = interpretH $ \case
   Reaction cond m -> undefined
 
-emptyStack :: Member Stacks r => CardFace -> Sem r Bool
-emptyStack face = null <$> getStack (Supply face)
-
 -- TODO: Fix this
 justGetStack :: Member Stacks r => Position -> Sem r [Card]
 justGetStack p = do
@@ -136,7 +118,7 @@ interpStateRead = interpret $ \case
   GetDiscardPile pl -> justGetStack (PlayerCard pl PlayerDiscardPile)
   IsGameOver -> do
     cards <- activeKingdoms
-    emptyPiles <- forM cards emptyStack
+    emptyPiles <- forM cards (\face -> null <$> getStack (Supply face))
     provinces <- justGetStack (Supply Province)
     return $ null provinces || countElem True emptyPiles >= 3
   -- GetReactions pl -> _

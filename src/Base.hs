@@ -11,6 +11,7 @@ constMap keys a = Map.fromList $ map (flip (,) a) keys
 
 
 {-# INLINABLE (!?) #-}
+(!?) :: (Ord a1, Num a1, Foldable t) => t a2 -> a1 -> Maybe a2
 xs !? n
   | n < 0     = Nothing
   | otherwise = foldr (\x r k -> case k of

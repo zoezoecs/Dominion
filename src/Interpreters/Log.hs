@@ -1,5 +1,5 @@
-module Interpreters.Log where
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
+module Interpreters.Log where
 
 import Polysemy
 import Polysemy.Output

@@ -144,13 +144,13 @@ replaceType search_this replace_this = go
 monomorphiseConLiftInfo :: Type -> ConLiftInfo -> ConLiftInfo
 monomorphiseConLiftInfo new_type di = 
   let 
-    [prev_type] = traceShowId $ cliEffArgs di 
+    [prev_type] = cliEffArgs di 
     effRes = cliEffRes di
     funArgs = cliFunArgs di
     funCxt = cliFunCxt di
     replaceFun (name, ty) = if ty==prev_type then (name, new_type) else (name, replaceType prev_type new_type ty)
   in
-    traceShowId $ di{
+    di{
       cliEffArgs=[new_type],
       cliEffRes=replaceType prev_type new_type effRes,
       cliFunArgs=map replaceFun funArgs,
