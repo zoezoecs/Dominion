@@ -4,8 +4,6 @@ import Polysemy
 import Control.Monad.Loops ( anyM, unfoldM )
 import Control.Monad
 import Data.Function
-import Data.Either
-import Data.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
 

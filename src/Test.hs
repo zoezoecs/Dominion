@@ -6,7 +6,7 @@ import Polysemy.Input
 import Base
 import System.Random
 import Effects
-import Interpreters
+import Interpreters.Random
 import System.Random.Stateful
 
 data MyEffect m a where

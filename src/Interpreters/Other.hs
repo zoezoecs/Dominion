@@ -1,0 +1,148 @@
+module Interpreters.Other where
+
+import Polysemy
+import Polysemy.State
+
+import Control.Monad
+import Data.Maybe
+import Data.Map (Map)
+import qualified Data.Map as Map
+
+import Base
+import Effects
+import Cards
+
+-- Obvious design choice: state is a big datatype
+data GameState = MkGameState {
+  all_players :: [Player],
+  blocks :: Map Player Bool,
+  current_actions :: Int,
+  current_buys :: Int,
+  current_currency :: Int
+  -- reactions :: [Reaction m]
+}
+modActions n gs = gs{current_actions=n+current_actions gs}
+modBuys n gs = gs{current_buys=n+current_buys gs}
+modCurrency n gs = gs{current_currency=n+current_currency gs}
+setBlocks :: Player -> Bool -> GameState -> GameState
+setBlocks pl b gs = gs{blocks=Map.insert pl b (blocks gs)}
+
+
+interpGameLoop :: Members '[Stacks, State GameState, BoardStateRead, GameRules, CardEffects] r => Sem (GameLoop : r) a -> Sem r a
+interpGameLoop = interpret $ \case
+  StartingResources _ -> do -- Starting player is implicit in game state
+    modify (\gs -> gs
+      { current_actions  = 1
+      , current_buys     = 1
+      , current_currency = 0
+      })
+  BuyCard player face -> do
+    valid_buy <- canBuy player face
+    case valid_buy of
+      Left err -> return $ Left err
+      Right () -> do
+        mcard <- gainCard player face
+        case mcard of
+          Left err -> return $ Left (BadGain err)
+          Right card -> do modify (modBuys (-1))
+                           return $ Right card
+  PlayFromHand player card -> do
+    valid_action <- canAct player card
+    case valid_action of
+      Left err -> return $ Left err
+      Right () -> do
+        cardToPos card (PlayerCard player PlayerInPlay)
+        modify (modActions (-1))
+        activateCard player card
+        return $ Right ()
+  PlayTreasure player card -> do
+    case getCurrency card of
+      Just n -> do
+        cardToPos card (PlayerCard player PlayerInPlay)
+        modify $ modCurrency n
+        return $ Right n
+      Nothing -> return $ Left NotATresure
+  DrawTurnStart pl n -> drawCard pl n
+  DiscardHandCleanup pl -> do
+    hand <- getHand pl
+    forM_ hand (discard pl)
+    stackOnto (PlayerCard pl PlayerInPlay) (PlayerCard pl PlayerDiscardPile)
+    stackOnto (PlayerCard pl PlayerSetAside) (PlayerCard pl PlayerDiscardPile)
+
+interpGameRules :: Members '[State GameState, Stacks, BoardStateRead] r => Sem (GameRules : r) a -> Sem r a
+interpGameRules = interpret $ \case
+  CanBuy pl face -> do
+    gs        <- get @GameState
+    stack     <- getStack (Supply face)
+    let result
+          | current_buys gs <= 0                    = Left NoBuys
+          | current_currency gs < getFaceCost face  = Left NoMoney
+          | isNothing stack                         = Left $ BadGain NotInKingdom
+          | stack == Just []                        = Left $ BadGain EmptySupply
+          | otherwise                               = Right ()
+    return result
+  CanAct pl card -> do
+    gs        <- get @GameState
+    handCards <- getHand pl
+    let result
+          | current_actions gs <= 0  = Left NoActions
+          | card `notElem` handCards = Left CardPositionIncorrect
+          | otherwise                = Right ()
+    return result
+
+interpCardEffects :: Members '[Stacks, State GameState, PlayerIO, BoardStateRead] r => Sem (CardEffects : r) a -> Sem r a
+interpCardEffects = interpret $ \case
+  ModifyActions n -> modify (modActions n) >> current_actions <$> get
+  ModifyBuys n -> modify (modBuys n) >> current_buys <$> get
+  ModifyCurrency n -> modify (modCurrency n) >> current_currency <$> get
+  ActivateCard pl c -> interpCardEffects (getEffect (getFace c) pl c) -- Moat check and reaction checks. Isn't it weird c appears twice?
+  DrawOnce pl -> drawTo (PlayerCard pl PlayerDeck) (PlayerCard pl PlayerHand)
+  BlockOne pl _ -> void $ modify (setBlocks pl True)
+  Discard pl c -> void $ cardToPos c (PlayerCard pl PlayerDiscardPile)
+  TrashCard _ c -> void $ cardToPos c Trash
+  Reveal _ _ -> return () -- Reveal handled elsewhere
+  TopDeck pl c -> void $ cardToPos c (PlayerCard pl PlayerDeck)
+  GainCardTo pl c pos -> do
+    mcard <- drawTo (Supply c) (PlayerCard pl pos)
+    case mcard of
+      Nothing -> return $ Left EmptySupply
+      Just card -> return $ Right card
+
+-- via interceptH as well to check then?
+-- cleanup?
+interpReaction :: Sem (Reaction : r) a -> Sem r a
+interpReaction = interpretH $ \case
+  Reaction cond m -> undefined
+
+emptyStack :: Member Stacks r => CardFace -> Sem r Bool
+emptyStack face = null <$> getStack (Supply face)
+
+-- TODO: Fix this
+justGetStack :: Member Stacks r => Position -> Sem r [Card]
+justGetStack p = do
+    mstack <- getStack p
+    case mstack of
+        Nothing -> undefined
+        Just cards -> return cards
+
+interpStateRead :: Members '[Stacks, State GameState] r => Sem (BoardStateRead : r) a -> Sem r a
+interpStateRead = interpret $ \case
+  GetPlayers -> flip constMap () <$> (all_players <$> get)
+  GetVP pl -> sum <$> (fmap getCardVP <$> (join <$> mapM (justGetStack . PlayerCard pl) allPositions))
+  GetHand pl -> justGetStack (PlayerCard pl PlayerHand)
+  GetDeck pl -> justGetStack (PlayerCard pl PlayerDeck)
+  GetTopCard pl -> flip (!?) 1 <$> justGetStack (PlayerCard pl PlayerDeck)
+  GetTopNCard pl n -> flip (!?) n <$> justGetStack (PlayerCard pl PlayerDeck)
+  GetDiscardPile pl -> justGetStack (PlayerCard pl PlayerDiscardPile)
+  IsGameOver -> do
+    cards <- activeKingdoms
+    emptyPiles <- forM cards emptyStack
+    provinces <- justGetStack (Supply Province)
+    return $ null provinces || countElem True emptyPiles >= 3
+  -- GetReactions pl -> _
+
+interpCorrelation :: Sem r a -> Sem r a
+interpCorrelation = undefined
+
+interpPlayerIO :: Member (Embed IO) r => Sem (PlayerIO : r) a -> Sem r a
+interpPlayerIO = undefined

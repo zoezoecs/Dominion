@@ -9,7 +9,7 @@ import qualified Data.Map as Map
  
 import Base
 import Data
-import Interpreters
+import Interpreters.Interpreters
 import Effects
 import GameLoop
 
