@@ -56,17 +56,18 @@ createCards = mapM createCards''
 initStacks :: [Player] -> [CardFace] -> Map Position [Card]
 initStacks pl cf = run . evalState @Int 0 . createCards $ boardInitState pl cf
 
-main :: [Player] -> [CardFace] -> IO ([String], ())
+main :: [Player] -> [CardFace] -> IO ([(Player, String)], ())
 main pl cf = runM .
              interpPlayerIO .
              interpRandomWithSeed 4 . -- interpRandomGlobal
              interpRandomShuffle .
-             runOutputList .
-             logToString .
              evalState @(Map Position [Card]) (initStacks pl cf) .
              interpStacks (stacksConfig pl).
              evalState @GameState (initGS pl) .
              interpStateRead .
+             runOutputList .
+             logPlayerToString .
+             logToPlayerLog .
              interpGameRules .
              interpCardEffects .
              interpGameLoop .
@@ -82,7 +83,6 @@ main pl cf = runM .
 -- Consider Data formatting json vs haskell
 
 -- temporary id scoping for information in log
--- log per player information
 
 -- Stacks and bad locations
 

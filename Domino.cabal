@@ -76,7 +76,7 @@ library
     exposed-modules:  MyLib, Test
 
     -- Modules included in this library but not exported.
-    other-modules: GameLoop, Effects, Cards, Interpreters, Base, Data
+    other-modules: GameLoop, Effects, Cards, Interpreters, Base, Data, Internal.TH, Internal.TestTH
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -91,6 +91,8 @@ library
                       random^>=1.2.1.1,
                       mtl^>=2.3.1,
                       polysemy-plugin^>=0.4.5.2,
+                      template-haskell^>=2.20.0.0,
+                      th-abstraction^>=0.7.0.0,
 
 
     -- Directories containing source files.
