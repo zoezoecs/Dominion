@@ -161,8 +161,8 @@ applyToAll f = applyTo f (dupKey <$> getPlayers)
 -- We also need this thing to carry around the proof that the output of CardEffects m a is always showable, because we know the constructors.
 -- This allows us to have a LogEffect constructor in Log.
 data Loggable card a where
-  LogEvent :: (Show a, Show card) => CardEffects' card m a -> Loggable card a
-deriving instance Show (Loggable card a)
+  LogEvent :: Show a => CardEffects' card m a -> Loggable card a
+deriving instance Show card => Show (Loggable card a)
 
 -- This is inspecting each constructor to see that there must implicitly be a Show a for each a
 -- It looks like its doing nothing, but its actually implicitly packing a Show instance dict
@@ -184,7 +184,7 @@ data Log card m a where
   LogBuy :: Player -> CardFace -> Log card m ()
   LogAct :: Show card => Player -> card -> Log card m ()
   LogTreasure :: Show card => Player -> card -> Log card m ()
-  LogEffect :: Loggable card a -> a -> Log card m a
+  LogEffect :: Show card => Loggable card a -> a -> Log card m a
 makeSemMonomorphised ''Card ''Log
 
 data LogToPlayer m a where
