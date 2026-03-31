@@ -47,7 +47,7 @@ getEffect = undefined
 --bandit :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r ()
 bandit :: CardSemantics
 bandit player _ = do
-  gainCard player Gold
+  _ <- gainCard player Gold
   players <- getPlayers
   forM_ (dupKey $ Map.delete player players) bandited
 
@@ -65,9 +65,9 @@ bandited player = do
 --witch :: (Member CardEffects r) => Player -> Sem r ()
 witch :: CardSemantics
 witch player _ = do
-  drawCard player 1
-  modifyActions 1
-  applyToOthers player (`gainCard` Curse)
+  _ <- drawCard player 1
+  _ <- modifyActions 1
+  _ <- applyToOthers player (`gainCard` Curse)
   return ()
 
 -- moatPlay :: (Member CardEffects r) => Player -> Sem r ()
@@ -92,7 +92,7 @@ moatReact player card = reaction (otherPlayerAttack player) moatBlock
 --councilRoom :: (Member CardEffects r) => Player -> Sem r ()
 councilRoom :: CardSemantics
 councilRoom player _ = do
-  drawCard player 4
-  modifyBuys 1
-  applyToOthers player (`drawCard` 1)
+  _ <- drawCard player 4
+  _ <- modifyBuys 1
+  _ <- applyToOthers player (`drawCard` 1)
   return ()

@@ -14,6 +14,7 @@ import Effects
 
 -- TODO: Fix maybes everywhere
 -- TODO: Surely this is a lens type problem. At least modify??
+unsafeLookup :: Ord k => k -> Map k c -> c
 unsafeLookup l = fromJust . Map.lookup l
 
 refill :: (Member Stacks r, Foldable t) => PileConfig t -> Position -> Sem r ()

@@ -4,7 +4,6 @@ module Test where
 import Polysemy
 import Polysemy.Input
 import Base
-import System.Random
 import Effects
 import Interpreters.Random
 import System.Random.Stateful

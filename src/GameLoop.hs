@@ -4,7 +4,7 @@ import Polysemy
 import Control.Monad.Loops ( anyM, unfoldM )
 import Control.Monad
 import Data.Function
-import Data.Map (Map)
+--import Data.Map (Map)
 import qualified Data.Map as Map
 
 import Effects
