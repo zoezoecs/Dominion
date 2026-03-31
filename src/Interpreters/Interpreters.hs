@@ -19,4 +19,5 @@ module Interpreters.Interpreters (
 import Interpreters.Log (logEffects, logTurn, logPlayerToString, logToPlayerLog)
 import Interpreters.Stacks (interpStacks)
 import Interpreters.Random (interpRandomWithSeed, interpRandomGlobal, interpRandomShuffle)
-import Interpreters.Other (interpCardEffects, interpCorrelation, interpGameLoop, interpGameRules, interpPlayerIO, interpStateRead)
+import Interpreters.Other (interpCardEffects, interpCorrelation, interpPlayerIO, interpStateRead)
+import Interpreters.GameLogic (interpGameLoop, interpGameRules)

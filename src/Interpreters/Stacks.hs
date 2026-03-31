@@ -9,6 +9,7 @@ import Data.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
 
+import Types
 import Effects
 
 

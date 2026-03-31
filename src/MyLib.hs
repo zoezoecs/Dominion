@@ -8,6 +8,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
  
 import Base
+import Types
 import Data
 import Interpreters.Interpreters
 import Effects
@@ -78,6 +79,7 @@ main pl cf = runM .
 -- TODO: 
 -- Implement reactions, add all cards
 -- Implement PlayerIO and data serialisation
+-- Implement "Get Valid Moves" for every PlayerIO prompt
 
 -- consider card semantics locations
 -- Consider Data formatting json vs haskell

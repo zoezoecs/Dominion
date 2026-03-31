@@ -5,6 +5,7 @@ import qualified Data.Map as Map
 
 import Base
 import Effects
+import Types
 import Data.List
 
 initialBaseSupply :: Int -> Map CardFace Int

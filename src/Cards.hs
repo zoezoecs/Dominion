@@ -8,6 +8,7 @@ import qualified Data.Map as Map
 
 import Effects
 import Base
+import Types
 
 -- TODO: Think about extensibility vs guarantees with where this data goes...
 getFace :: Card -> CardFace

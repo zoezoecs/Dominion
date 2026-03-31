@@ -76,7 +76,21 @@ library
     exposed-modules:  MyLib, Test
 
     -- Modules included in this library but not exported.
-    other-modules: GameLoop, Effects, Cards, Interpreters.Interpreters, Interpreters.Random, Interpreters.Log, Interpreters.Stacks, Interpreters.Other, Base, Data, Internal.TH, Internal.TestTH
+    other-modules: 
+                   Internal.TH,
+                   Internal.TestTH,
+                   Base,
+                   Types,
+                   Effects,
+                   GameLoop, 
+                   Interpreters.Interpreters,
+                   Interpreters.Random,
+                   Interpreters.Log,
+                   Interpreters.Stacks,
+                   Interpreters.GameLogic,
+                   Interpreters.Other,
+                   Cards,
+                   Data,
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

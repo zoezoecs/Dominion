@@ -7,6 +7,7 @@ import Data.Function
 --import Data.Map (Map)
 import qualified Data.Map as Map
 
+import Types
 import Effects
 -- discardHand' :: (Member CardEffects r, Member BoardStateRead r) => Player -> Sem r ()
 -- discardHand' player = void $ applyTo (discard player) (getHand player)

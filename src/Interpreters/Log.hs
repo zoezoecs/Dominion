@@ -8,6 +8,7 @@ import Control.Monad
 import Data.Map (Map)
 
 import Base
+import Types
 import Effects
 
 effectPipe :: (Member (Log Card) r, Member CardEffects r) => Sem r b -> CardEffects r b -> Sem r b
@@ -65,8 +66,8 @@ logToPlayerLog = interpret $ \case
     redact :: Card -> ObscuredCard
     redact = undefined
 
-    logRedacted :: (Show card, Show a, Show b, Members '[LogToPlayer, BoardStateRead] r) => 
-                   Player -> CardEffects' Card m a -> a -> CardEffects' card m b -> b -> Sem r ()
+    logRedacted :: (Show card1, Show card2, Show a, Show b, Members '[LogToPlayer, BoardStateRead] r) => 
+                   Player -> CardEffects' card1 m a -> a -> CardEffects' card2 m b -> b -> Sem r ()
     logRedacted pl secret secret_val public public_val = do
       _ <- logToPlayer (LogEffect (LogEvent secret) secret_val) pl
       _ <- applyToOthers pl (logToPlayer (LogEffect (LogEvent public) public_val))
