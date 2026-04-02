@@ -87,8 +87,8 @@ main pl cf = runM .
 -- temporary id scoping for information in log
 
 -- Stacks and bad locations
-
 -- Rules validation locations and coverage (c.f. Stacks and CardEffects impossible effect defaulting to signalled ignore)
+
 -- Splitting interpreter logic correctly
 -- Commutativity tests
 -- Check the thing actually works lmao

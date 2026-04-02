@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, LambdaCase, BlockArguments, GADTs, FlexibleContexts, TypeOperators, DataKinds, PolyKinds, ScopedTypeVariables, StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell, LambdaCase, BlockArguments, GADTs, FlexibleContexts, TypeOperators, DataKinds, PolyKinds, ScopedTypeVariables, StandaloneDeriving, DeriveFunctor #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 module Effects where
 
@@ -12,10 +12,8 @@ import System.Random.Stateful
 
 import Base
 import Internal.TH
-
 import Types
 
--- its not clear why we wouldn't just reinterpret straight into a state monad
 data Stacks m a where
   ActivePositions :: Stacks m [Position] -- TODO: abstraction barrier broken
   GetStack :: Position -> Stacks m (Maybe [Card])
@@ -79,7 +77,7 @@ data CardEffects' card m a where
 
   ActivateCard :: Player -> card -> CardEffects' card m () -- This just activates a given card with a focus on a player, think Throne Room. 
   -- Note that if you activate a Moat, the card effect depends on the specific card, not just the card face - it will reveal a different card.
-  DrawOnce :: Player -> CardEffects' card m (Maybe card)  -- Note Maybe signals no cards in draw OR discard
+  DrawOnce :: Player -> CardEffects' card m (Maybe card)  -- Note Maybe signals no cards in both draw AND discard
   BlockOne :: Player -> card -> CardEffects' card m () -- Blocks the next attack? This could so lead to a bug lmao...
   Discard :: Player -> card -> CardEffects' card m () -- NOTE: None of these are "discard FROM HAND" or anything
   TrashCard :: Player -> card -> CardEffects' card m ()
@@ -89,6 +87,37 @@ data CardEffects' card m a where
 makeSemMonomorphised ''Card ''CardEffects'
 deriving instance (Show a, Show card) => Show (CardEffects' card m a)
 type CardEffects = CardEffects' Card
+
+newtype Answer a = Ans {getAns :: a} deriving (Eq, Ord, Show, Functor)
+data CardEffects'' card where
+  -- Modify game resources
+  XModifyActions ::  Int  -> Answer Int -> CardEffects'' card
+  XModifyBuys ::  Int  -> Answer Int -> CardEffects'' card
+  XModifyCurrency ::  Int  -> Answer Int -> CardEffects'' card
+
+  XActivateCard ::  Player -> card  -> Answer () -> CardEffects'' card
+  XDrawOnce ::  Player  -> Answer (Maybe card) -> CardEffects'' card
+  XBlockOne ::  Player -> card  -> Answer () -> CardEffects'' card 
+  XDiscard ::  Player -> card  -> Answer () -> CardEffects'' card
+  XTrashCard ::  Player -> card  -> Answer () -> CardEffects'' card
+  XReveal ::  Player -> card  -> Answer () -> CardEffects'' card
+  XTopDeck ::  Player -> card  -> Answer () -> CardEffects'' card
+  XGainCardTo ::  Player -> CardFace -> PlayerPosition  -> Answer (Either InvalidGain card) -> CardEffects'' card
+deriving instance Show card => Show (CardEffects'' card)
+deriving instance Functor CardEffects''
+
+removeAParameter :: CardEffects' card m a -> a -> CardEffects'' card
+removeAParameter ((ModifyActions n)) x = XModifyActions n (Ans x)
+removeAParameter ((ModifyBuys n)) x = XModifyBuys n (Ans x)
+removeAParameter ((ModifyCurrency n)) x = XModifyCurrency n (Ans x)
+removeAParameter ((ActivateCard pl c)) x = XActivateCard pl c (Ans x)
+removeAParameter ((DrawOnce pl)) x = XDrawOnce pl (Ans x)
+removeAParameter ((BlockOne pl c)) x = XBlockOne pl c (Ans x)
+removeAParameter ((Discard pl c)) x = XDiscard pl c (Ans x)
+removeAParameter ((TrashCard pl c)) x = XTrashCard pl c (Ans x)
+removeAParameter ((Reveal pl c)) x = XReveal pl c (Ans x)
+removeAParameter ((TopDeck pl c)) x = XTopDeck pl c (Ans x)
+removeAParameter ((GainCardTo pl cf pos)) x = XGainCardTo pl cf pos (Ans x)
 
 drawCard :: Member CardEffects r => Player -> Int -> Sem r [Card]
 drawCard player n = fmap catMaybes $ replicateM n $ drawOnce player
@@ -106,44 +135,48 @@ applyToAll :: (Member BoardStateRead r) => (Player -> Sem r a) -> Sem r (Map Pla
 applyToAll f = applyTo f (dupKey <$> getPlayers)
 
 
--- POLYSEMY ANNOYING:
--- We have to monomorphise here for a = CardEffects m a to avoid Polysemy thinking Loggable (CardEffects m a) is higher order.
--- We also need this thing to carry around the proof that the output of CardEffects m a is always showable, because we know the constructors.
--- This allows us to have a LogEffect constructor in Log.
-data Loggable card a where
-  LogEvent :: Show a => CardEffects' card m a -> Loggable card a
-deriving instance Show card => Show (Loggable card a)
-
--- This is inspecting each constructor to see that there must implicitly be a Show a for each a
--- It looks like its doing nothing, but its actually implicitly packing a Show instance dict
-showLoggable :: CardEffects r a -> Loggable Card a
-showLoggable (ModifyActions n) = LogEvent (ModifyActions n)
-showLoggable (ModifyBuys n) = LogEvent (ModifyBuys n)
-showLoggable (ModifyCurrency n) = LogEvent (ModifyCurrency n)
-showLoggable (ActivateCard pl c) = LogEvent (ActivateCard pl c)
-showLoggable (DrawOnce pl) = LogEvent (DrawOnce pl)
-showLoggable (BlockOne pl c) = LogEvent (BlockOne pl c)
-showLoggable (Discard pl c) = LogEvent (Discard pl c)
-showLoggable (TrashCard pl c) = LogEvent (TrashCard pl c)
-showLoggable (Reveal pl c) = LogEvent (Reveal pl c)
-showLoggable (TopDeck pl c) = LogEvent (TopDeck pl c)
-showLoggable (GainCardTo pl c pos) = LogEvent (GainCardTo pl c pos)
-
 data Log card m a where
   LogPlayerRoundStart :: Player -> Log card m ()
   LogBuy :: Player -> CardFace -> Log card m ()
   LogAct :: Show card => Player -> card -> Log card m ()
   LogTreasure :: Show card => Player -> card -> Log card m ()
-  LogEffect :: Show card => Loggable card a -> a -> Log card m a
+  LogEffect :: (Show card) => CardEffects'' card -> Log card m ()
+  -- POLYSEMY ANNOYING: This constructor runs in to a _lot_ of issues with unifying the `a` type variable when we try to map the card variable
+  -- to inject into an Either type. We can give up the type level guarantee that the result of an effect matches the actual effect, since we
+  -- have to do lots of boilerplate enumeration anyways for everything. If we could make the interpreters have boilerplate free TH free code,
+  -- we might be able to come back here and fix this.
+  -- LogModifyActions :: Answer Int -> Int -> Log card m ()
+  -- LogModifyBuys :: Answer Int -> Int -> Log card m ()
+  -- LogModifyCurrency :: Answer Int -> Int -> Log card m ()
+  -- LogActivateCard :: Player -> card -> Log card m () -- This just activates a given card with a focus on a player, think Throne Room. 
+  -- LogDrawOnce :: Answer (Maybe card) -> Player -> Log card m ()  -- Note Maybe signals no cards in both draw AND discard
+  -- LogBlockOne :: Player -> card -> Log card m () -- Blocks the next attack? This could so lead to a bug lmao...
+  -- LogDiscard :: Player -> card -> Log card m () -- NOTE: None of these are "discard FROM HAND" or anything
+  -- LogTrashCard :: Player -> card -> Log card m ()
+  -- LogReveal :: Player -> card -> Log card m ()
+  -- LogTopDeck :: Player -> card -> Log card m ()
+  -- LogGainCardTo :: Answer (Either InvalidGain card) -> Player -> CardFace -> PlayerPosition -> Log card m ()
 makeSemMonomorphised ''Card ''Log
 
-data LogToPlayer m a where
-  LogToPlayer :: Log card m a -> Player -> LogToPlayer m a
+logCardMap :: (Show c2) => (c1 -> c2) -> Log c1 m a -> Log c2 m a
+logCardMap f (LogPlayerRoundStart pl) = LogPlayerRoundStart pl
+logCardMap f (LogBuy pl cf) = LogBuy pl cf
+logCardMap f (LogAct pl c) = LogAct pl (f c)
+logCardMap f (LogTreasure pl c) = LogTreasure pl (f c)
+logCardMap f (LogEffect eff) = LogEffect (fmap f eff)
+
+data LogToPlayer card m a where
+  LogToPlayer :: Log card m a -> Player -> LogToPlayer card m a
 makeSem ''LogToPlayer
 
 deriving instance (Show a, Show card) => Show (Log card m a)
 
 newtype TempIdMap = TempIdMap (Map Card Int)
+
+data Obscure m a where
+  Obscure :: Card -> Obscure m ObscuredCard
+makeSem ''Obscure
+
 data Correlation m a where
   MkCorrelation :: m a -> Correlation m a
 makeSem ''Correlation
