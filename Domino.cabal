@@ -73,7 +73,7 @@ library
     import:           warnings, polysemysettings
 
     -- Modules exported by the library.
-    exposed-modules:  MyLib, Test
+    exposed-modules:  MyLib
 
     -- Modules included in this library but not exported.
     other-modules: 
@@ -91,6 +91,10 @@ library
                    Interpreters.Other,
                    Cards,
                    Data,
+                   Playing.HigherOrder,
+                   Playing.InterpretIntercept,
+                   Playing.RandomImpl,
+                   Playing.Witness,
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

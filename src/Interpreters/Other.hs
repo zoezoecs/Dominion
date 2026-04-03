@@ -62,8 +62,5 @@ interpStateRead = interpret $ \case
     return $ null provinces || countElem True emptyPiles >= 3
   -- GetReactions pl -> _
 
-interpCorrelation :: Members '[Obscure, LogToPlayer (Either Card ObscuredCard)] r => Sem (Correlation : r) a -> Sem r a
-interpCorrelation = undefined
-
 interpPlayerIO :: Member (Embed IO) r => Sem (PlayerIO : r) a -> Sem r a
 interpPlayerIO = undefined

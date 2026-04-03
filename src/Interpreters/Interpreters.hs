@@ -9,15 +9,16 @@ module Interpreters.Interpreters (
   interpRandomGlobal,
   interpRandomShuffle,
   interpCardEffects,
-  interpCorrelation,
+  runCorrelation,
   interpGameLoop,
   interpGameRules,
   interpPlayerIO,
   interpStateRead,
+  runObscure,
 ) where
 
-import Interpreters.Log (logEffects, logTurn, logPlayerToString, logToPlayerLog)
+import Interpreters.Log (logEffects, logTurn, logPlayerToString, logToPlayerLog, runObscure, runCorrelation)
 import Interpreters.Stacks (interpStacks)
 import Interpreters.Random (interpRandomWithSeed, interpRandomGlobal, interpRandomShuffle)
-import Interpreters.Other (interpCardEffects, interpCorrelation, interpPlayerIO, interpStateRead)
+import Interpreters.Other (interpCardEffects, interpPlayerIO, interpStateRead)
 import Interpreters.GameLogic (interpGameLoop, interpGameRules)

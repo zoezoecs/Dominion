@@ -67,7 +67,8 @@ main pl cf = runM .
              evalState @GameState (initGS pl) .
              interpStateRead .
              runOutputList .
-             logPlayerToString .
+             runObscure . 
+             logPlayerToString @_ @_ @(Either Card ObscuredCard).
              logToPlayerLog .
              interpGameRules .
              interpCardEffects .

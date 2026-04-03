@@ -63,8 +63,8 @@ logToPlayerLog = interpret $ \case
     logEffectAll :: (Members '[LogToPlayer (Either Card ObscuredCard), BoardStateRead] r) => CardEffects'' Card -> Sem r ()
     logEffectAll a = void $ applyToAll $ logToPlayer . logCardMap Left $ LogEffect a
 
-    dontRedact :: Card -> Sem r (Either Card ObscuredCard)
-    dontRedact = return . Left
+    dontRedact :: Member Obscure r => Card -> Sem r (Either Card ObscuredCard)
+    dontRedact = fmap Left . dontObscure
 
     redactEff :: Member Obscure r => Card -> Sem r (Either Card ObscuredCard)
     redactEff = fmap Right . obscure
@@ -85,3 +85,13 @@ logPlayerToString = interpret $ \case
   LogToPlayer (LogAct pl c) logpl -> output (logpl, show (LogAct pl c))
   LogToPlayer (LogTreasure pl c) logpl -> output (logpl, show (LogTreasure pl c))
   LogToPlayer (LogEffect eff) logpl -> output (logpl, show (LogEffect eff))
+
+runObscure :: Sem (Obscure : r) a -> Sem r a
+runObscure = interpret $ \case
+  Obscure card -> undefined
+
+runCorrelation :: Members '[Obscure, LogToPlayer (Either Card ObscuredCard)] r => Sem (Correlation : r) a -> Sem r a
+runCorrelation = interpretH $ \case
+  MkCorrelation m -> do
+    calc <- runT m
+    return undefined
