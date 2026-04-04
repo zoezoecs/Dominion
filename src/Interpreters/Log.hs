@@ -8,6 +8,7 @@ import Polysemy.State
 
 import Control.Monad
 import Data.Map (Map)
+import qualified Data.Map as Map
 
 import Base
 import Types
@@ -41,39 +42,49 @@ logTurn = intercept $ \case
     DrawTurnStart pl n -> logPlayerRoundStart pl >> drawTurnStart pl n
     DiscardHandCleanup pl -> discardHandCleanup pl
 
-logToPlayerLog :: (Members '[LogToPlayer (Either Card ObscuredCard), BoardStateRead, Obscure] r) => Sem (Log Card : r) a -> Sem r a
+logToPlayerLog :: (Members '[LogToPlayer PotentiallyObscured, BoardStateRead, Obscure] r) => Sem (Log Card : r) a -> Sem r a
 logToPlayerLog = interpret $ \case
-  LogPlayerRoundStart player -> logAll (LogPlayerRoundStart player)
-  LogBuy player cf -> logAll (LogBuy player cf)
-  LogAct player cf -> logAll (LogAct player cf)
-  LogTreasure player cf -> logAll (LogTreasure player cf)
-  LogEffect (XModifyActions n (Ans m)) -> logEffectAll (XModifyActions n (Ans m))
-  LogEffect (XModifyBuys n (Ans m)) -> logEffectAll (XModifyBuys n (Ans m))
-  LogEffect (XModifyCurrency n (Ans m)) -> logEffectAll (XModifyCurrency n (Ans m))
-  LogEffect (XActivateCard pl c (Ans ())) -> logEffectAll (XActivateCard pl c (Ans ()))
+  LogPlayerRoundStart player -> logAll0 (LogPlayerRoundStart player)
+  LogBuy player cf -> logAll0 (LogBuy player cf)
+  LogAct player card -> logAll (LogAct player) card
+  LogTreasure player card -> logAll (LogTreasure player) card
+  LogEffect (XModifyActions n (Ans m)) -> logEffectAll0 (XModifyActions n (Ans m))
+  LogEffect (XModifyBuys n (Ans m)) -> logEffectAll0 (XModifyBuys n (Ans m))
+  LogEffect (XModifyCurrency n (Ans m)) -> logEffectAll0 (XModifyCurrency n (Ans m))
+  LogEffect (XActivateCard pl c (Ans ())) -> logEffectAll (\cx -> XActivateCard pl cx (Ans ())) c
   LogEffect (XDrawOnce pl (Ans mc)) -> logRedactedEff' pl (XDrawOnce pl) (traverse dontRedact mc) (traverse redactEff mc)
-  LogEffect (XBlockOne pl c (Ans ())) -> logEffectAll (XBlockOne pl c (Ans ()))
+  LogEffect (XBlockOne pl c (Ans ())) -> logEffectAll (\cx -> XBlockOne pl cx (Ans ())) c
   LogEffect (XDiscard pl c (Ans ())) -> logRedactedEff pl ((\x -> XDiscard pl x (Ans ())) <$> dontRedact c) ((\x -> XDiscard pl x (Ans ())) <$> redactEff c)
   LogEffect (XTrashCard pl c (Ans ())) -> logRedactedEff pl ((\x -> XTrashCard pl x (Ans ())) <$> dontRedact c) ((\x -> XTrashCard pl x (Ans ())) <$> redactEff c)
-  LogEffect (XReveal pl c (Ans ())) -> logEffectAll (XReveal pl c (Ans ()))
+  LogEffect (XReveal pl c (Ans ())) -> logEffectAll (\cx -> XReveal pl cx (Ans ())) c
   LogEffect (XTopDeck pl c (Ans ())) -> logRedactedEff pl ((\x -> XTopDeck pl x (Ans ())) <$> dontRedact c) ((\x -> XTopDeck pl x (Ans ())) <$> redactEff c)
   LogEffect (XGainCardTo pl cf pos (Ans mcard)) -> logRedactedEff' pl (XGainCardTo pl cf pos) (traverse dontRedact mcard) (traverse redactEff mcard)
   where
-    logAll :: (Members '[LogToPlayer (Either Card ObscuredCard), BoardStateRead] r) => Log Card (Sem r) () -> Sem r ()
-    logAll x = void $ applyToAll (logToPlayer (logCardMap Left x))
+    logAll0 :: (Members '[LogToPlayer PotentiallyObscured, Obscure, BoardStateRead] r) => (forall card. Log card (Sem r) ()) -> Sem r ()
+    logAll0 x = void $ applyToAll (logToPlayer @PotentiallyObscured (logCardMap Left x))
 
-    logEffectAll :: (Members '[LogToPlayer (Either Card ObscuredCard), BoardStateRead] r) => CardEffects'' Card -> Sem r ()
-    logEffectAll a = void $ applyToAll $ logToPlayer . logCardMap Left $ LogEffect a
+    logAll :: (Members '[LogToPlayer PotentiallyObscured, Obscure, BoardStateRead] r) => (Card -> Log Card (Sem r) ()) -> Card -> Sem r ()
+    logAll f x = do
+      tid <- getTempId x
+      void $ applyToAll (logToPlayer @PotentiallyObscured (logCardMap (\y -> Left (y, tid)) (f x)))
 
-    dontRedact :: Member Obscure r => Card -> Sem r (Either Card ObscuredCard)
-    dontRedact = fmap Left . dontObscure
+    logEffectAll0 :: (Members '[LogToPlayer PotentiallyObscured, BoardStateRead] r) => (forall card. CardEffects'' card) -> Sem r ()
+    logEffectAll0 a = void $ applyToAll $ logToPlayer . logCardMap Left $ LogEffect a
 
-    redactEff :: Member Obscure r => Card -> Sem r (Either Card ObscuredCard)
-    redactEff = fmap Right . obscure
+    logEffectAll :: (Members '[LogToPlayer PotentiallyObscured, Obscure, BoardStateRead] r) => (Card -> CardEffects'' Card) -> Card -> Sem r ()
+    logEffectAll f a = do
+      tid <- getTempId a
+      void $ applyToAll $ logToPlayer . logCardMap (\y -> Left (y, tid)) $ LogEffect (f a)
 
-    logRedactedEff' :: (Members '[LogToPlayer (Either Card ObscuredCard), BoardStateRead] r) =>
+    dontRedact :: Member Obscure r => Card -> Sem r PotentiallyObscured
+    dontRedact card = fmap (\tid -> Left (card,tid)) (getTempId card)
+
+    redactEff :: Member Obscure r => Card -> Sem r PotentiallyObscured
+    redactEff = fmap (Right . Obscured) . getTempId
+
+    logRedactedEff' :: (Members '[LogToPlayer PotentiallyObscured, BoardStateRead] r) =>
                    Player ->
-                   (Answer x -> CardEffects'' (Either Card ObscuredCard)) -> 
+                   (Answer x -> CardEffects'' PotentiallyObscured) ->
                    Sem r x ->
                    Sem r x ->
                    Sem r ()
@@ -84,10 +95,10 @@ logToPlayerLog = interpret $ \case
       _ <- applyToOthers pl (logToPlayer (LogEffect . effect_template . Ans $ gottenPublicAns))
       return ()
 
-    logRedactedEff :: (Members '[LogToPlayer (Either Card ObscuredCard), BoardStateRead] r) =>
-                   Player -> 
-                   Sem r (CardEffects'' (Either Card ObscuredCard)) -> 
-                   Sem r (CardEffects'' (Either Card ObscuredCard)) -> 
+    logRedactedEff :: (Members '[LogToPlayer PotentiallyObscured, BoardStateRead] r) =>
+                   Player ->
+                   Sem r (CardEffects'' PotentiallyObscured) ->
+                   Sem r (CardEffects'' PotentiallyObscured) ->
                    Sem r ()
     logRedactedEff pl secret_sem public_sem = do
       secret_eff <- secret_sem
@@ -106,10 +117,14 @@ logPlayerToString = interpret $ \case
 
 runObscure :: Sem (Obscure : r) a -> Sem (State (Map Card TempId) : r) a
 runObscure = reinterpret $ \case
-  Obscure card -> do
-    wah <- get
-    undefined
-  DontObscure card -> undefined
+  GetTempId card -> do
+    usedCards <- get
+    case Map.lookup card usedCards of
+      Just wah -> return wah
+      Nothing -> do
+        newId <- undefined
+        put $ Map.insert card newId usedCards
+        return newId
 
 mockState :: s -> Sem (State s : r) a -> Sem r a
 mockState s = interpret $ \case
@@ -117,6 +132,6 @@ mockState s = interpret $ \case
   Put _ -> return ()
 
 runCorrelation :: Sem (Scoped_ Obscure ': (Obscure ': r)) a -> Sem r a
-runCorrelation = mockState mempty . 
-                 runObscure . 
-                 runScopedNew @() (const $ evalState (mempty @(Map Card TempId)). subsume_ . runObscure)
+runCorrelation = mockState mempty .
+                 runObscure .
+                 runScopedNew @() (const $ evalState mempty. subsume_ . runObscure)

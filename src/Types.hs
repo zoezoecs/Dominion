@@ -13,6 +13,8 @@ data CardFace = Copper | Curse | Estate | Silver | Duchy | Gold | Province |
 data Card = MkCard Int CardFace deriving (Eq, Ord, Show)
 newtype TempId = MkTempId Int deriving (Eq, Ord, Show)
 newtype ObscuredCard = Obscured TempId deriving (Eq, Ord, Show)
+type PotentiallyObscured = Either (Card, TempId) ObscuredCard
+
 data CardTypes = CardAttack | CardReaction | CardAction | CardTreasure | CardVictory deriving (Eq, Ord)
 newtype Player = MkPlayer Int deriving (Ord, Eq, Show)
 

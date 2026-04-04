@@ -174,8 +174,7 @@ deriving instance (Show a, Show card) => Show (Log card m a)
 newtype TempIdMap = TempIdMap (Map Card Int)
 
 data Obscure m a where
-  Obscure :: Card -> Obscure m ObscuredCard
-  DontObscure :: Card -> Obscure m Card
+  GetTempId :: Card -> Obscure m TempId
 makeSem ''Obscure
 
 data Correlation m a where

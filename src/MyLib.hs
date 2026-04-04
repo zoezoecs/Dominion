@@ -68,7 +68,7 @@ main pl cf = runM .
              interpStateRead .
              runOutputList .
              runCorrelation . 
-             logPlayerToString @_ @_ @(Either Card ObscuredCard).
+             logPlayerToString @_ @_ @PotentiallyObscured.
              logToPlayerLog .
              interpGameRules .
              interpCardEffects .
