@@ -1,9 +1,25 @@
-{-# LANGUAGE TemplateHaskell, LambdaCase, BlockArguments, GADTs, FlexibleContexts, TypeOperators, DataKinds, PolyKinds, ScopedTypeVariables, StandaloneDeriving, DeriveFunctor #-}
+{-# LANGUAGE TemplateHaskell, DeriveFunctor #-}
 module Playing.Witness where
 
 import Internal.TH
 import Types
 
+data CardEffects''' card m a where
+  -- Modify game resources
+  BModifyActions :: Int -> CardEffects''' card m Int
+  BModifyBuys :: Int -> CardEffects''' card m Int
+  BModifyCurrency :: Int -> CardEffects''' card m Int
+
+  BActivateCard :: Player -> card -> CardEffects''' card m () -- This just activates a given card with a focus on a player, think Throne Room. 
+  -- Note that if you activate a Moat, the card effect depends on the specific card, not just the card face - it will reveal a different card.
+  BDrawOnce :: Player -> CardEffects''' card m (Maybe card)  -- Note Maybe signals no cards in both draw AND discard
+  BBlockOne :: Player -> card -> CardEffects''' card m () -- Blocks the next attack? This could so lead to a bug lmao...
+  BDiscard :: Player -> card -> CardEffects''' card m () -- NOTE: None of these are "discard FROM HAND" or anything
+  BTrashCard :: Player -> card -> CardEffects''' card m ()
+  BReveal :: Player -> card -> CardEffects''' card m ()
+  BTopDeck :: Player -> card -> CardEffects''' card m ()
+  BGainCardTo :: Player -> CardFace -> PlayerPosition -> CardEffects''' card m (Either InvalidGain card)
+makeSemMonomorphised ''Card ''CardEffects'''
 
 data CardEffects' card m a where
   -- Modify game resources

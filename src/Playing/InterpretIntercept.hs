@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, LambdaCase, BlockArguments, GADTs, FlexibleContexts, TypeOperators, DataKinds, PolyKinds, ScopedTypeVariables, StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Playing.InterpretIntercept where
 
 import Polysemy

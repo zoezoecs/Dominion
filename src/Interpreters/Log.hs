@@ -19,8 +19,8 @@ effectPipe a b = a >>=/ (logEffect . b . Ans)
 
 -- TODO: Fix boilerplate. Its annoying I can't even use @ patterns...
 -- TODO: This should be a lot more granular, since not every player gets every event at the same level of knowledge.
-logEffects :: Members '[CardEffects, Log Card] r => Sem (CardEffects : r) a -> Sem r a
-logEffects = interpret $ \case
+logEffects :: Members '[CardEffects, Log Card] r => Sem r a -> Sem r a
+logEffects = intercept $ \case
   ModifyActions n -> effectPipe (modifyActions n) (XModifyActions n)
   ModifyBuys n -> effectPipe (modifyBuys n) (XModifyBuys n)
   ModifyCurrency n -> effectPipe (modifyCurrency n) (XModifyCurrency n)
@@ -42,6 +42,7 @@ logTurn = intercept $ \case
     DrawTurnStart pl n -> logPlayerRoundStart pl >> drawTurnStart pl n
     DiscardHandCleanup pl -> discardHandCleanup pl
 
+-- TODO: This sucks is unreadable and has shit ergonomics
 logToPlayerLog :: (Members '[LogToPlayer PotentiallyObscured, BoardStateRead, Obscure] r) => Sem (Log Card : r) a -> Sem r a
 logToPlayerLog = interpret $ \case
   LogPlayerRoundStart player -> logAll0 (LogPlayerRoundStart player)
@@ -115,23 +116,23 @@ logPlayerToString = interpret $ \case
   LogToPlayer (LogTreasure pl c) logpl -> output (logpl, show (LogTreasure pl c))
   LogToPlayer (LogEffect eff) logpl -> output (logpl, show (LogEffect eff))
 
-runObscure :: Sem (Obscure : r) a -> Sem (State (Map Card TempId) : r) a
+runObscure :: Member RandomUniqueId r => Sem (Obscure : r) a -> Sem (State (Map Card TempId) : r) a
 runObscure = reinterpret $ \case
   GetTempId card -> do
     usedCards <- get
     case Map.lookup card usedCards of
       Just wah -> return wah
       Nothing -> do
-        newId <- undefined
-        put $ Map.insert card newId usedCards
-        return newId
+        newId <- randomUniqueId
+        put $ Map.insert card (MkTempId newId) usedCards
+        return (MkTempId newId)
 
 mockState :: s -> Sem (State s : r) a -> Sem r a
 mockState s = interpret $ \case
   Get -> return s
   Put _ -> return ()
 
-runCorrelation :: Sem (Scoped_ Obscure ': (Obscure ': r)) a -> Sem r a
+runCorrelation :: Member RandomUniqueId r => Sem (Scoped_ Obscure ': (Obscure ': r)) a -> Sem r a
 runCorrelation = mockState mempty .
                  runObscure .
                  runScopedNew @() (const $ evalState mempty. subsume_ . runObscure)

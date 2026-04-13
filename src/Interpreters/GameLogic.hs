@@ -54,6 +54,16 @@ interpGameLoop = interpret $ \case
     stackOnto (PlayerCard pl PlayerInPlay) (PlayerCard pl PlayerDiscardPile)
     stackOnto (PlayerCard pl PlayerSetAside) (PlayerCard pl PlayerDiscardPile)
 
+interpDoReaction :: Members '[GameRules] r => Sem (DoReaction : r) a -> Sem r a
+interpDoReaction = interpret $ \case
+  DoReaction pl card ceff ma -> do
+    valid_reaction <- canReact pl card ceff ma
+    case valid_reaction of
+      Left err -> return . Left $ err
+      Right () -> do
+        getCardReaction (getFace card)
+        return . Right $ ()
+
 interpGameRules :: Members '[State GameState, Stacks, BoardStateRead] r => Sem (GameRules : r) a -> Sem r a
 interpGameRules = interpret $ \case
   CanBuy pl face -> do
@@ -72,5 +82,16 @@ interpGameRules = interpret $ \case
     let result
           | current_actions gs <= 0  = Left NoActions
           | card `notElem` handCards = Left CardPositionIncorrect
+          | otherwise                = Right ()
+    return result
+  CanReact pl card ceff ma -> do
+    handCards <- getHand pl
+    let cond_true = case (getCardReaction . getFace $ card, ma) of
+          (BeforeReaction cond _, Nothing) -> cond (cardEffectrMap ceff)
+          (AfterReaction cond _, Just a) -> cond (cardEffectrMap ceff) a
+          _ -> False
+    let result
+          | card `notElem` handCards = Left NoCard
+          | cond_true                = Left ConditionNotMet
           | otherwise                = Right ()
     return result

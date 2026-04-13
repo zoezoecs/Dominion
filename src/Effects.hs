@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, LambdaCase, BlockArguments, GADTs, FlexibleContexts, TypeOperators, DataKinds, PolyKinds, ScopedTypeVariables, StandaloneDeriving, DeriveFunctor #-}
+{-# LANGUAGE TemplateHaskell, DeriveFunctor #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 module Effects where
 
@@ -15,7 +15,7 @@ import Internal.TH
 import Types
 
 data Stacks m a where
-  ActivePositions :: Stacks m [Position] -- TODO: abstraction barrier broken
+  ActivePositions :: Stacks m [Position]
   GetStack :: Position -> Stacks m (Maybe [Card])
   ShuffleStack :: Position -> Stacks m ()
   StackOnto :: Position -> Position -> Stacks m ()
@@ -50,21 +50,6 @@ data BoardStateRead m a where
   -- GetReactions :: Player -> BoardStateRead m [Reaction m]
 makeSem ''BoardStateRead
 
-data GameLoop m a where
-  StartingResources :: Player -> GameLoop m ()
-  BuyCard :: Player -> CardFace -> GameLoop m (Either InvalidBuy Card)
-  PlayFromHand :: Player -> Card -> GameLoop m (Either InvalidMove ()) -- This is what should be used to check actions and membership in hand
-  PlayTreasure :: Player -> Card -> GameLoop m (Either TreasureError Int)
-  -- Design choice: Inline recovery function. c.f. Error, Either, Validation/token checking, state versioning, linearity, uuids
-  DrawTurnStart :: Player -> Int -> GameLoop m [Card] -- Draw from deck
-  DiscardHandCleanup :: Player -> GameLoop m ()
-makeSem ''GameLoop
-
-data GameRules m a where
-    CanBuy :: Player -> CardFace -> GameRules m (Either InvalidBuy ())
-    CanAct :: Player -> Card -> GameRules m (Either InvalidMove ())
-makeSem ''GameRules
-
 -- POLYSEMY ANNOYING: I really want to make Card polymorphic, but this raises so many type inference issues.
 -- I can get makeSem to work if I add polysemy-plugin, but the smart constructors are still complaining about
 -- inability to infer the card membership. 
@@ -87,6 +72,28 @@ data CardEffects' card m a where
 makeSemMonomorphised ''Card ''CardEffects'
 deriving instance (Show a, Show card) => Show (CardEffects' card m a)
 type CardEffects = CardEffects' Card
+
+cardEffectrMap :: CardEffects' card r1 a -> CardEffects' card r2 a
+cardEffectrMap (ModifyActions n) = ModifyActions n
+cardEffectrMap (ModifyBuys n) = ModifyBuys n
+cardEffectrMap (ModifyCurrency n) = ModifyCurrency n
+
+cardEffectrMap (ActivateCard pl c) = ActivateCard pl c
+cardEffectrMap (DrawOnce pl) = DrawOnce pl
+cardEffectrMap (BlockOne pl c) = BlockOne pl c
+cardEffectrMap (Discard pl c) = Discard pl c
+cardEffectrMap (TrashCard pl c) = TrashCard pl c
+cardEffectrMap (Reveal pl c) = Reveal pl c
+cardEffectrMap (TopDeck pl c) = TopDeck pl c
+cardEffectrMap (GainCardTo pl cf pp) = GainCardTo pl cf pp
+
+-- data FOCardEffects a = MkFOCE {getFOCE :: forall k (m :: k). CardEffects m a}
+-- toFOCE :: CardEffects m a -> FOCardEffects a
+-- toFOCE x = MkFOCE $ cardEffectrMap x
+-- 
+-- fromFOCE :: FOCardEffects a -> CardEffects m a
+-- fromFOCE (MkFOCE x) = x
+
 
 newtype Answer a = Ans {getAns :: a} deriving (Eq, Ord, Show, Functor)
 data CardEffects'' card where
@@ -133,6 +140,26 @@ applyToOthers player f = applyTo f (dupKey . Map.delete player <$> getPlayers)
 
 applyToAll :: (Member BoardStateRead r) => (Player -> Sem r a) -> Sem r (Map Player a)
 applyToAll f = applyTo f (dupKey <$> getPlayers)
+
+
+data GameLoop m a where
+  StartingResources :: Player -> GameLoop m ()
+  BuyCard :: Player -> CardFace -> GameLoop m (Either InvalidBuy Card)
+  PlayFromHand :: Player -> Card -> GameLoop m (Either InvalidMove ()) -- This is what should be used to check actions and membership in hand
+  PlayTreasure :: Player -> Card -> GameLoop m (Either TreasureError Int)
+  DrawTurnStart :: Player -> Int -> GameLoop m [Card] -- Draw from deck
+  DiscardHandCleanup :: Player -> GameLoop m ()
+makeSem ''GameLoop
+
+data DoReaction m a where
+  DoReaction :: Player -> Card -> (forall r. CardEffects r a) -> Maybe a -> DoReaction m (Either InvalidReaction ())
+makeSem ''DoReaction
+
+data GameRules m a where
+    CanBuy :: Player -> CardFace -> GameRules m (Either InvalidBuy ())
+    CanAct :: Player -> Card -> GameRules m (Either InvalidMove ())
+    CanReact :: Player -> Card -> (forall r. CardEffects r a) -> Maybe a -> GameRules m (Either InvalidReaction ())
+makeSem ''GameRules
 
 
 data Log card m a where
@@ -190,6 +217,14 @@ makeSem ''Correlation
 -- Clients don't see the card logic causality, they just see streams of events and must infer themselves.
 -- How to make sure enough information gets through? We need a protocol.
 
+data Reaction m a where
+    BeforeReaction :: (forall m1 x. CardEffects (Sem m1) x -> Bool) -> m () -> Reaction m a
+    AfterReaction :: (forall m1 x. CardEffects (Sem m1) x -> x -> Bool) -> m () -> Reaction m a
+
+getReactionMonad :: Reaction m a -> m ()
+getReactionMonad (BeforeReaction cond m) = m
+getReactionMonad (AfterReaction cond m) = m
+
 -- Obvious design choice: Separate player IO and clients out from server/central logic.
 data PlayerIO m a where
   GetAction :: Player -> PlayerIO m (Maybe Card)
@@ -198,15 +233,16 @@ data PlayerIO m a where
   GetTrashAny :: Player -> [Card] -> PlayerIO m [Card]
   GetTrashExactlyN :: Player -> Int -> [Card] -> PlayerIO m [a]
   SendInfo :: Player -> PlayerIO m ()
+  GetPlayerReaction :: Player -> (forall r. CardEffects r a) -> Maybe a -> PlayerIO m (Maybe Card)
 makeSem ''PlayerIO
-
-data Reaction m a where
-    Reaction :: (CardEffects m () -> Bool) -> m () -> Reaction m a
-makeSem ''Reaction
 
 data RandomShuffle m a where
     RandomShuffle :: [a] -> RandomShuffle m [a]
 makeSem ''RandomShuffle
+
+data RandomUniqueId m a where
+  RandomUniqueId :: RandomUniqueId m Int
+makeSem ''RandomUniqueId
 
 -- POLYSEMY ANNOYING:
 -- More packing so the constraint goes through...

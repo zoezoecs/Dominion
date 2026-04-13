@@ -4,6 +4,9 @@ import Polysemy
 import Polysemy.State
 
 import Control.Monad
+import Control.Monad.Loops
+import Data.Monoid
+import Data.Function
 import Data.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -14,29 +17,73 @@ import Effects
 import Cards
 
 
-interpCardEffects :: Members '[Stacks, State GameState, PlayerIO, BoardStateRead] r => Sem (CardEffects : r) a -> Sem r a
-interpCardEffects = interpret $ \case
-  ModifyActions n -> modify (modActions n) >> current_actions <$> get
-  ModifyBuys n -> modify (modBuys n) >> current_buys <$> get
-  ModifyCurrency n -> modify (modCurrency n) >> current_currency <$> get
-  ActivateCard pl c -> interpCardEffects (getEffect (getFace c) pl c) -- Moat check and reaction checks. Isn't it weird c appears twice?
-  DrawOnce pl -> drawTo (PlayerCard pl PlayerDeck) (PlayerCard pl PlayerHand)
-  BlockOne pl _ -> void $ modify (setBlocks pl True)
-  Discard pl c -> void $ cardToPos c (PlayerCard pl PlayerDiscardPile)
-  TrashCard _ c -> void $ cardToPos c Trash
-  Reveal _ _ -> return () -- Reveal handled elsewhere
-  TopDeck pl c -> void $ cardToPos c (PlayerCard pl PlayerDeck)
-  GainCardTo pl c pos -> do
-    mcard <- drawTo (Supply c) (PlayerCard pl pos)
-    case mcard of
-      Nothing -> return $ Left EmptySupply
-      Just card -> return $ Right card
+interpCardEffects :: Members '[Stacks, State GameState, PlayerIO, BoardStateRead] r => (forall x. Sem (CardEffects : r) x -> Sem (CardEffects : r) x) -> Sem (CardEffects : r) a -> Sem r a
+interpCardEffects inject = interpCardEffects' . inject
+  where
+    interpCardEffects' = interpret @CardEffects $ \case
+      ModifyActions n -> modify (modActions n) >> current_actions <$> get
+      ModifyBuys n -> modify (modBuys n) >> current_buys <$> get
+      ModifyCurrency n -> modify (modCurrency n) >> current_currency <$> get
+      ActivateCard pl c -> interpCardEffects inject (getEffect (getFace c) pl c) -- Moat check and reaction checks. Isn't it weird c appears twice?
+      DrawOnce pl -> drawTo (PlayerCard pl PlayerDeck) (PlayerCard pl PlayerHand)
+      BlockOne pl _ -> void $ modify (setBlocks pl True)
+      Discard pl c -> void $ cardToPos c (PlayerCard pl PlayerDiscardPile)
+      TrashCard _ c -> void $ cardToPos c Trash
+      Reveal _ _ -> return () -- Reveal handled elsewhere
+      TopDeck pl c -> void $ cardToPos c (PlayerCard pl PlayerDeck)
+      GainCardTo pl c pos -> do
+        mcard <- drawTo (Supply c) (PlayerCard pl pos)
+        case mcard of
+          Nothing -> return $ Left EmptySupply
+          Just card -> return $ Right card
 
--- via interceptH as well to check then?
--- cleanup?
-interpReaction :: Sem (Reaction : r) a -> Sem r a
-interpReaction = interpretH $ \case
-  Reaction cond m -> undefined
+-- How do I ensure that "If someone gains a treasure" only fires before someone successfully gains a treasure, and not before
+-- someone fails to gain a treasure, or after someone gains a treasure?
+-- I mean thats not nontrivial, right. What if you have a card that says "when someone gains a card, you also gain a copy"
+-- How can that possibly fire before theirs does.
+-- Ok, there are two types of reactions, ones that go before and just block, and others that trigger in reaction to events, which
+-- go after.
+-- Also, I think reactions can only be activated from someones hand. However, many reactions are returned to the players hand immediately
+-- after being put into play.
+-- Oh great, and reactions can be chosen by the player of which to play, in player order.
+-- We need to recursively check for reaction cards after each one is played, too, to update what can be played
+
+-- We need to circle around each player, ask them for which reactions they want to play while updating the possible reactions,
+-- and apply the reactions. This won't quite work with what I've done though - you need to ask the player AFTER the answer is
+-- available if they wish to play a valid action. So we need to do two phases, one for before reactions and one for after reactions
+-- after the event has occurred
+
+-- Prompt the player to react, Maybe signals choosing to not buy
+playOneReaction' :: (Member DoReaction r, Member PlayerIO r) => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r (Maybe ()) -> Sem r (Maybe ())
+playOneReaction' player ceff ma if_invalid = do
+  mreact <- getPlayerReaction player (cardEffectrMap ceff) ma
+  case mreact of
+    Nothing -> return Nothing
+    Just card -> do
+     moutcome <- doReaction player card (cardEffectrMap ceff) ma
+     case moutcome of
+      Left _   -> if_invalid
+      Right outcome -> return $ Just outcome
+
+playOneReaction :: (Member DoReaction r, Member PlayerIO r) => Player -> CardEffects (Sem rinnitial) a -> Maybe a -> Sem r (Maybe ())
+playOneReaction pl ceff ma = fix $ playOneReaction' pl ceff ma
+
+playerReact :: (Member DoReaction r, Member PlayerIO r) => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r [()]
+playerReact pl ceff ma = unfoldM (playOneReaction pl ceff ma)
+
+playerReacts :: Members '[DoReaction, CardEffects, PlayerIO] r => Player -> CardEffects (Sem rinitial) a -> Sem r a
+playerReacts player cardEff = do
+  _ <- playerReact player cardEff Nothing -- "before reactions"
+  ret <- send (cardEffectrMap cardEff)
+  _ <- playerReact player cardEff (Just ret) -- "after reactions"
+  return ret
+
+injectReaction' :: Members '[BoardStateRead, PlayerIO, CardEffects, DoReaction] r => Sem r a -> Sem r a
+injectReaction' program = do
+  players' <- getPlayers -- wrong semantics
+  let players = Map.keys players' -- probably wrong
+  let wah x = Endo $ intercept @CardEffects (playerReacts x)
+  appEndo (foldMap wah players) program
 
 -- TODO: Fix this
 justGetStack :: Member Stacks r => Position -> Sem r [Card]
@@ -60,7 +107,6 @@ interpStateRead = interpret $ \case
     emptyPiles <- forM cards (\face -> null <$> getStack (Supply face))
     provinces <- justGetStack (Supply Province)
     return $ null provinces || countElem True emptyPiles >= 3
-  -- GetReactions pl -> _
 
 interpPlayerIO :: Member (Embed IO) r => Sem (PlayerIO : r) a -> Sem r a
-interpPlayerIO = undefined
+interpPlayerIO = interpret $ undefined

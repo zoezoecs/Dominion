@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, LambdaCase, BlockArguments, GADTs, FlexibleContexts, TypeOperators, DataKinds, PolyKinds, ScopedTypeVariables, StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 module Internal.TestTH where
 import Internal.TH

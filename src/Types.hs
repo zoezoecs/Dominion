@@ -23,6 +23,7 @@ data InvalidMove = NoActions | CardPositionIncorrect deriving Show
 data InvalidBuy = NoBuys | NoMoney | BadGain InvalidGain deriving Show
 data InvalidGain = NotInKingdom | EmptySupply | GainError deriving Show
 data TreasureError = NotATresure deriving Show
+data InvalidReaction = NoCard | ConditionNotMet
 
 data PlayerPosition = PlayerDeck | PlayerDiscardPile | PlayerHand | PlayerInPlay | PlayerSetAside deriving (Eq, Ord, Show)
 -- data Kingdom = Kingdom

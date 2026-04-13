@@ -40,8 +40,8 @@ getFaceCost = undefined
 
 getTypes :: CardFace -> [CardTypes]
 getTypes = undefined
-getReaction :: CardFace -> Reaction m ()
-getReaction = undefined
+getCardReaction :: CardFace -> m ()
+getCardReaction = undefined
 getEffect :: CardFace -> CardSemantics
 getEffect = undefined
 
@@ -83,8 +83,8 @@ otherPlayerAttack player (ActivateCard pl card) = (player /= pl) && isAttack (ge
 otherPlayerAttack _ _ = False
 
 -- Uhhhh TODO is this correct? Reaction as an effect?
-moatReact :: (Members '[CardEffects, Reaction] r) => Player -> Card -> Sem r ()
-moatReact player card = reaction (otherPlayerAttack player) moatBlock
+moatReact :: (Members '[CardEffects, Reaction] r) => Player -> Card -> Reaction (Sem r) a
+moatReact player card = BeforeReaction (otherPlayerAttack player) moatBlock
   where
     moatBlock = do
       reveal player card

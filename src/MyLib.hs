@@ -62,6 +62,7 @@ main pl cf = runM .
              interpPlayerIO .
              interpRandomWithSeed 4 . -- interpRandomGlobal
              interpRandomShuffle .
+             runRandomUniqueId .
              evalState @(Map Position [Card]) (initStacks pl cf) .
              interpStacks (stacksConfig pl).
              evalState @GameState (initGS pl) .
@@ -71,21 +72,19 @@ main pl cf = runM .
              logPlayerToString @_ @_ @PotentiallyObscured.
              logToPlayerLog .
              interpGameRules .
-             interpCardEffects .
+             interpCardEffects logEffects.
              interpGameLoop .
-             logEffects .
-             logTurn $
+             logTurn 
+             $
              playGame
 
 -- TODO: 
 -- Implement reactions, add all cards
 -- Implement PlayerIO and data serialisation
--- Implement "Get Valid Moves" for every PlayerIO prompt
+-- Implement "Get Valid Moves" "for every PlayerIO prompt"
 
 -- consider card semantics locations
 -- Consider Data formatting json vs haskell
-
--- temporary id scoping for information in log
 
 -- Stacks and bad locations
 -- Rules validation locations and coverage (c.f. Stacks and CardEffects impossible effect defaulting to signalled ignore)

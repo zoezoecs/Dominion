@@ -37,8 +37,6 @@ import Language.Haskell.TH.Datatype
 import Polysemy.Internal.TH.Common
 import Debug.Trace
 
--- TODO: write tests for what should (not) compile
-
 ------------------------------------------------------------------------------
 -- | If @T@ is a GADT representing an effect algebra, as described in the
 -- module documentation for "Polysemy", @$('makeSem' ''T)@ automatically
@@ -99,10 +97,6 @@ makeSem = genFreer True
 --
 -- These restrictions may be removed in the future, depending on changes to
 -- the compiler.
---
--- Change in (TODO(Sandy): version): in case of GADTs, signatures now only use
--- names from data constructor's type and not from type constructor
--- declaration.
 --
 -- @since 0.1.2.0
 makeSem_ :: Name -> Q [Dec]

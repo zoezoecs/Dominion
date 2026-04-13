@@ -22,6 +22,12 @@ interpRandomShuffle = interpret $ \case
     HoldRandom gen <- input @(HoldRandom IO)
     embed @IO $ myShuffle gen stack
 
+runRandomUniqueId :: Members '[RandomGenEff IO, Embed IO] r => Sem (RandomUniqueId : r) a -> Sem r a
+runRandomUniqueId = interpret $ \case
+  RandomUniqueId -> do
+    HoldRandom gen <- input @(HoldRandom IO)
+    embed @IO $ uniformRM (minBound, maxBound) gen
+
 -- newSTGenM :: g -> ST s (STGenM g s) 
 -- MonadIO m => g -> m (AtomicGenM g) 
 runInputGenerator :: (Member (Embed m) r) => (g2 -> m (g1 g2)) -> (k -> g2) -> k -> Sem (Input (g1 g2) ': r) a -> Sem r a
