@@ -1,0 +1,32 @@
+module Playing.FailedLog where
+
+-- data CardEffects'' card where
+--   -- Modify game resources
+--   XModifyActions ::  Int  -> Answer Int -> CardEffects'' card
+--   XModifyBuys ::  Int  -> Answer Int -> CardEffects'' card
+--   XModifyCurrency ::  Int  -> Answer Int -> CardEffects'' card
+-- 
+--   XActivateCard ::  Player -> card  -> Answer () -> CardEffects'' card
+--   XDrawOnce ::  Player  -> Answer (Maybe card) -> CardEffects'' card
+--   XBlockOne ::  Player -> card  -> Answer () -> CardEffects'' card
+--   XDiscard ::  Player -> card  -> Answer () -> CardEffects'' card
+--   XTrashCard ::  Player -> card  -> Answer () -> CardEffects'' card
+--   XReveal ::  Player -> card  -> Answer () -> CardEffects'' card
+--   XTopDeck ::  Player -> card  -> Answer () -> CardEffects'' card
+--   XGainCardTo ::  Player -> CardFace -> PlayerPosition  -> Answer (Either InvalidGain card) -> CardEffects'' card
+-- deriving instance Show card => Show (CardEffects'' card)
+-- deriving instance Functor CardEffects''
+
+-- removeAParameter :: CardEffects' card m a -> a -> CardEffects'' card
+-- removeAParameter ((ModifyActions n)) x = XModifyActions n (Ans x)
+-- removeAParameter ((ModifyBuys n)) x = XModifyBuys n (Ans x)
+-- removeAParameter ((ModifyCurrency n)) x = XModifyCurrency n (Ans x)
+-- removeAParameter ((ActivateCard pl c)) x = XActivateCard pl c (Ans x)
+-- removeAParameter ((DrawOnce pl)) x = XDrawOnce pl (Ans x)
+-- removeAParameter ((BlockOne pl c)) x = XBlockOne pl c (Ans x)
+-- removeAParameter ((Discard pl c)) x = XDiscard pl c (Ans x)
+-- removeAParameter ((TrashCard pl c)) x = XTrashCard pl c (Ans x)
+-- removeAParameter ((Reveal pl c)) x = XReveal pl c (Ans x)
+-- removeAParameter ((TopDeck pl c)) x = XTopDeck pl c (Ans x)
+-- removeAParameter ((GainCardTo pl cf pos)) x = XGainCardTo pl cf pos (Ans x)
+-- 
