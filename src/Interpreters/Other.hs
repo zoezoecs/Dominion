@@ -5,10 +5,11 @@ import Polysemy.State
 
 import Control.Monad
 import Control.Monad.Loops
+import Data.Aeson
+import qualified Data.ByteString.Lazy as BS
 import Data.Monoid
 import Data.Function
-import Data.Maybe
-import Data.Map (Map)
+import Data.Constraint.Extras
 import qualified Data.Map as Map
 
 import Base
@@ -78,8 +79,8 @@ playerReacts player cardEff = do
   _ <- playerReact player cardEff (Just ret) -- "after reactions"
   return ret
 
-injectReaction' :: Members '[BoardStateRead, PlayerIO, CardEffects, DoReaction] r => Sem r a -> Sem r a
-injectReaction' program = do
+injectReaction :: Members '[BoardStateRead, PlayerIO, CardEffects, DoReaction] r => Sem r a -> Sem r a
+injectReaction program = do
   players' <- getPlayers -- wrong semantics
   let players = Map.keys players' -- probably wrong
   let wah x = Endo $ intercept @CardEffects (playerReacts x)
@@ -108,5 +109,10 @@ interpStateRead = interpret $ \case
     provinces <- justGetStack (Supply Province)
     return $ null provinces || countElem True emptyPiles >= 3
 
-interpPlayerIO :: Member (Embed IO) r => Sem (PlayerIO : r) a -> Sem r a
-interpPlayerIO = interpret $ undefined
+interpPlayerIO :: Member DataSerialised r => Sem (PlayerIO : r) a -> Sem r a
+interpPlayerIO = interpret (\eff -> dataOut (encode eff) >> untilJust (has @FromJSON eff decode <$> dataIn))
+
+serialiseToTerminal :: Member (Embed IO) r => InterpreterFor DataSerialised r
+serialiseToTerminal = interpret $ \case
+  DataIn -> embed BS.getContents
+  DataOut bstr -> embed $ BS.putStr bstr

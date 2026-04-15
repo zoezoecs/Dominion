@@ -1,10 +1,12 @@
-{-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveGeneric, FlexibleInstances #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 module Effects.Effects where
 
 import Polysemy
 import Polysemy.Input
+import Data.ByteString.Lazy
 import Data.Maybe
+import Data.Aeson.GADT.TH
 import Data.Map (Map)
 import qualified Data.Map as Map
 import System.Random.Stateful
@@ -12,6 +14,8 @@ import System.Random.Stateful
 import Base
 import Types
 import Effects.CardEffects
+import Effects.Log
+import Effects.PlayerIO
 
 
 
@@ -93,16 +97,10 @@ getReactionMonad (AfterReaction cond m) = m
 -- Clients don't see the card logic causality, they just see streams of events and must infer themselves.
 -- How to make sure enough information gets through? We need a protocol.
 
--- Obvious design choice: Separate player IO and clients out from server/central logic.
-data PlayerIO m a where
-  GetAction :: Player -> PlayerIO m (Maybe Card)
-  GetPlayTreasure :: Player -> PlayerIO m (Maybe Card)
-  GetBuy :: Player -> PlayerIO m (Maybe CardFace)
-  GetTrashAny :: Player -> [Card] -> PlayerIO m [Card]
-  GetTrashExactlyN :: Player -> Int -> [Card] -> PlayerIO m [a]
-  SendInfo :: Player -> PlayerIO m ()
-  GetPlayerReaction :: Player -> (forall r. CardEffects r a) -> Maybe a -> PlayerIO m (Maybe Card)
-makeSem ''PlayerIO
+data DataSerialised m a where
+  DataIn :: DataSerialised m LazyByteString
+  DataOut :: LazyByteString -> DataSerialised m ()
+makeSem ''DataSerialised
 
 data RandomShuffle m a where
     RandomShuffle :: [a] -> RandomShuffle m [a]

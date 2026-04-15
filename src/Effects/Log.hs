@@ -46,7 +46,7 @@ instance FromJSON card => FromJSON (LoggedEvent card) where
       pure (LogEvent eff result)
 
 instance Eq card => Eq (LoggedEvent card) where
-  LogEvent eff1 result1 == LogEvent eff2 result2 =
+  LogEvent eff1 result1 == LogEvent eff2 result2 = 
     case geq eff1 (cardEffectrMap eff2) of
       Nothing   -> False
       Just Refl -> has @Eq eff1 $ result1 == result2

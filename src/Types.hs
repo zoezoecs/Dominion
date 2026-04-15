@@ -16,7 +16,7 @@ data CardFace = Copper | Curse | Estate | Silver | Duchy | Gold | Province |
 data Card = MkCard Int CardFace deriving (Eq, Ord, Show, Generic)
 newtype TempId = MkTempId Int deriving (Eq, Ord, Show, Generic)
 newtype ObscuredCard = Obscured TempId deriving (Eq, Ord, Show, Generic)
-type PotentiallyObscured = Either (Card, TempId) ObscuredCard
+newtype PotentiallyObscured = PObscured (Either (Card, TempId) ObscuredCard) deriving (Eq, Ord, Show, Generic)
 
 data CardTypes = CardAttack | CardReaction | CardAction | CardTreasure | CardVictory deriving (Eq, Ord, Show, Generic)
 newtype Player = MkPlayer Int deriving (Ord, Eq, Show, Generic)
@@ -65,6 +65,9 @@ instance FromJSON TempId
 instance ToJSON ObscuredCard where
     toEncoding = genericToEncoding defaultOptions
 instance FromJSON ObscuredCard
+instance ToJSON PotentiallyObscured where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON PotentiallyObscured
 
 
 

@@ -60,6 +60,7 @@ initStacks pl cf = run . evalState @Int 0 . createCards $ boardInitState pl cf
 
 main :: [Player] -> [CardFace] -> IO ([(Player, LazyByteString)], ())
 main pl cf = runM .
+             serialiseToTerminal .
              interpPlayerIO .
              interpRandomWithSeed 4 . -- interpRandomGlobal
              interpRandomShuffle .
@@ -70,10 +71,12 @@ main pl cf = runM .
              interpStateRead .
              runOutputList .
              runCorrelation . 
-             logPlayerToString @PotentiallyObscured .
+             logPlayerToPlayerIO . 
+             -- logPlayerToString @PotentiallyObscured .
              logToPlayerLog .
              interpGameRules .
-             interpCardEffects logEffects.
+             interpDoReaction .
+             interpCardEffects (logEffects . injectReaction).
              interpGameLoop .
              logTurn 
              $
@@ -81,8 +84,8 @@ main pl cf = runM .
 
 -- TODO: 
 -- Add all cards
--- Implement PlayerIO and data serialisation
 -- Implement "Get Valid Moves" "for every PlayerIO prompt"
+-- Implement playerIO no actions immediate return
 -- Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions?
 -- See if I can fix the logging system effect types
 -- See if I can fix the effect hierarchy

@@ -53,6 +53,9 @@ cardEffectrMap (TopDeck pl c) = TopDeck pl c
 cardEffectrMap (GainCardTo pl cf pp) = GainCardTo pl cf pp
 
 deriveJSONGADT ''CardEffects'
+
+-- constraints-extras-0.4.0.2 deriveArgDict does not derive this because it does not correctly use the 
+-- same type variables for instances of card in the constraints and the rest of signature
 instance (c Int, c (), c (Maybe card), c (Either InvalidGain card)) 
     => Has c (CardEffects' card m) where
   has eff k = case eff of
@@ -68,6 +71,7 @@ instance (c Int, c (), c (Maybe card), c (Either InvalidGain card))
     Reveal{}         -> k
     TopDeck{}        -> k
 
+-- dependent-sum-template-0.2.0.1 does not derive this because it cannot derive the Eq card constraint
 instance Eq card => GEq (CardEffects' card m) where
   geq (ModifyActions n1) (ModifyActions n2) = if n1 == n2 then Just Refl else Nothing
   geq (ModifyBuys n1) (ModifyBuys n2) = if n1 == n2 then Just Refl else Nothing

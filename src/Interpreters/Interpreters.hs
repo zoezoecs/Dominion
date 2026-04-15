@@ -3,8 +3,11 @@ module Interpreters.Interpreters (
   logEffects,
   logTurn,
   logPlayerToString,
+  logPlayerToPlayerIO,
   logToPlayerLog,
+  injectReaction,
   interpStacks,
+  interpDoReaction,
   interpRandomWithSeed,
   interpRandomGlobal,
   interpRandomShuffle,
@@ -14,12 +17,12 @@ module Interpreters.Interpreters (
   interpGameRules,
   interpPlayerIO,
   interpStateRead,
-  runObscure,
-  runRandomUniqueId
+  runRandomUniqueId,
+  serialiseToTerminal,
 ) where
 
-import Interpreters.Log (logEffects, logTurn, logPlayerToString, logToPlayerLog, runObscure, runCorrelation)
+import Interpreters.Log (logEffects, logTurn, logPlayerToString, logToPlayerLog, runCorrelation, logPlayerToPlayerIO)
 import Interpreters.Stacks (interpStacks)
 import Interpreters.Random (interpRandomWithSeed, interpRandomGlobal, interpRandomShuffle, runRandomUniqueId)
-import Interpreters.Other (interpCardEffects, interpPlayerIO, interpStateRead)
-import Interpreters.GameLogic (interpGameLoop, interpGameRules)
+import Interpreters.Other (interpCardEffects, interpPlayerIO, interpStateRead, injectReaction, serialiseToTerminal)
+import Interpreters.GameLogic (interpGameLoop, interpGameRules, interpDoReaction)

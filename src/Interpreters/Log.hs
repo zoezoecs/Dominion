@@ -64,26 +64,26 @@ logToPlayerLog = interpret $ \case
   LogEffect (LogEvent (GainCardTo pl cf pos) mcard) -> logRedactedEff' pl (LogEvent (GainCardTo pl cf pos)) (traverse dontRedact mcard) (traverse redactEff mcard)
   where
     logAll0 :: (Members '[LogToPlayer PotentiallyObscured, Obscure, BoardStateRead] r) => (forall card. Log card (Sem r) ()) -> Sem r ()
-    logAll0 x = void $ applyToAll (logToPlayer @PotentiallyObscured (logCardMap Left x))
+    logAll0 x = void $ applyToAll (logToPlayer @PotentiallyObscured (logCardMap (PObscured . Left) x))
 
     logAll :: (Members '[LogToPlayer PotentiallyObscured, Obscure, BoardStateRead] r) => (Card -> Log Card (Sem r) ()) -> Card -> Sem r ()
     logAll f x = do
       tid <- getTempId x
-      void $ applyToAll (logToPlayer @PotentiallyObscured (logCardMap (\y -> Left (y, tid)) (f x)))
+      void $ applyToAll (logToPlayer @PotentiallyObscured (logCardMap (\y -> PObscured $ Left (y, tid)) (f x)))
 
     logEffectAll0 :: (Members '[LogToPlayer PotentiallyObscured, BoardStateRead] r) => (forall card. LoggedEvent card) -> Sem r ()
-    logEffectAll0 a = void $ applyToAll $ logToPlayer . logCardMap Left $ LogEffect a
+    logEffectAll0 a = void $ applyToAll $ logToPlayer . logCardMap (PObscured . Left) $ LogEffect a
 
     logEffectAll :: (Members '[LogToPlayer PotentiallyObscured, Obscure, BoardStateRead] r) => (Card -> LoggedEvent Card) -> Card -> Sem r ()
     logEffectAll f a = do
       tid <- getTempId a
-      void $ applyToAll $ logToPlayer . logCardMap (\y -> Left (y, tid)) $ LogEffect (f a)
+      void $ applyToAll $ logToPlayer . logCardMap (\y -> PObscured $ Left (y, tid)) $ LogEffect (f a)
 
     dontRedact :: Member Obscure r => Card -> Sem r PotentiallyObscured
-    dontRedact card = fmap (\tid -> Left (card,tid)) (getTempId card)
+    dontRedact card = fmap (\tid -> PObscured $ Left (card,tid)) (getTempId card)
 
     redactEff :: Member Obscure r => Card -> Sem r PotentiallyObscured
-    redactEff = fmap (Right . Obscured) . getTempId
+    redactEff = fmap (PObscured . Right . Obscured) . getTempId
 
     logRedactedEff' :: (Members '[LogToPlayer PotentiallyObscured, BoardStateRead] r) =>
                    Player ->
@@ -112,6 +112,9 @@ logToPlayerLog = interpret $ \case
 
 logToString :: ToJSON card => Log card m a -> LazyByteString
 logToString = encode
+
+logPlayerToPlayerIO :: Member PlayerIO r => Sem (LogToPlayer PotentiallyObscured : r) a -> Sem r a
+logPlayerToPlayerIO = transform @_ @PlayerIO (\(LogToPlayer eff pl) -> SendInfo pl eff)
 
 logPlayerToString :: (ToJSON card, Member (Output (Player, LazyByteString)) r) => Sem (LogToPlayer card : r) a -> Sem r a
 logPlayerToString = interpret (\(LogToPlayer eff pl) -> output (pl, logToString eff))
