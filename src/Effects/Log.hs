@@ -63,21 +63,6 @@ data Log card m a where
   LogAct :: Player -> card -> Log card m ()
   LogTreasure :: Player -> card -> Log card m ()
   LogEffect :: LoggedEvent card -> Log card m ()
-  -- POLYSEMY ANNOYING: This constructor runs in to a _lot_ of issues with unifying the `a` type variable when we try to map the card variable
-  -- to inject into an Either type. We can give up the type level guarantee that the result of an effect matches the actual effect, since we
-  -- have to do lots of boilerplate enumeration anyways for everything. If we could make the interpreters have boilerplate free TH free code,
-  -- we might be able to come back here and fix this.
-  -- LogModifyActions :: Answer Int -> Int -> Log card m ()
-  -- LogModifyBuys :: Answer Int -> Int -> Log card m ()
-  -- LogModifyCurrency :: Answer Int -> Int -> Log card m ()
-  -- LogActivateCard :: Player -> card -> Log card m () -- This just activates a given card with a focus on a player, think Throne Room. 
-  -- LogDrawOnce :: Answer (Maybe card) -> Player -> Log card m ()  -- Note Maybe signals no cards in both draw AND discard
-  -- LogBlockOne :: Player -> card -> Log card m () -- Blocks the next attack? This could so lead to a bug lmao...
-  -- LogDiscard :: Player -> card -> Log card m () -- NOTE: None of these are "discard FROM HAND" or anything
-  -- LogTrashCard :: Player -> card -> Log card m ()
-  -- LogReveal :: Player -> card -> Log card m ()
-  -- LogTopDeck :: Player -> card -> Log card m ()
-  -- LogGainCardTo :: Answer (Either InvalidGain card) -> Player -> CardFace -> PlayerPosition -> Log card m ()
 makeSemMonomorphised ''Card ''Log
 deriveJSONGADT ''Log
 

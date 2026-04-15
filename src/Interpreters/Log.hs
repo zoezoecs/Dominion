@@ -6,6 +6,8 @@ import Polysemy.Output
 import Polysemy.Scoped
 import Polysemy.State
 
+import Data.Aeson
+import Data.ByteString.Lazy
 import Control.Monad
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -108,10 +110,10 @@ logToPlayerLog = interpret $ \case
       _ <- applyToOthers pl (logToPlayer (LogEffect public_eff))
       return ()
 
-logToString :: Log card m a -> String
-logToString = undefined
+logToString :: ToJSON card => Log card m a -> LazyByteString
+logToString = encode
 
-logPlayerToString :: (Member (Output (Player, String)) r) => Sem (LogToPlayer card : r) a -> Sem r a
+logPlayerToString :: (ToJSON card, Member (Output (Player, LazyByteString)) r) => Sem (LogToPlayer card : r) a -> Sem r a
 logPlayerToString = interpret (\(LogToPlayer eff pl) -> output (pl, logToString eff))
 
 runObscure :: Member RandomUniqueId r => Sem (Obscure : r) a -> Sem (State (Map Card TempId) : r) a

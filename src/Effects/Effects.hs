@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveGeneric #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
-module Effects.Effects (module Effects.Effects) where
+module Effects.Effects where
 
 import Polysemy
 import Polysemy.Input
@@ -78,16 +78,6 @@ data GameRules m a where
     CanReact :: Player -> Card -> (forall r. CardEffects r a) -> Maybe a -> GameRules m (Either InvalidReaction ())
 makeSem ''GameRules
 
-
-
-
--- Design choice: Messages to clients entirely through separate messages, and logs are reinterpreted from effects
--- Partial information managed by different messages with less information, no state tracking, no ability to refer to
--- previous messages for granular information (the card that was drawn 2 turns ago was a ...)
--- Clients don't reconstruct state, they just display the required information and collect the moves.
--- Clients don't see the card logic causality, they just see streams of events and must infer themselves.
--- How to make sure enough information gets through? We need a protocol.
-
 data Reaction m a where
     BeforeReaction :: (forall m1 x. CardEffects (Sem m1) x -> Bool) -> m () -> Reaction m a
     AfterReaction :: (forall m1 x. CardEffects (Sem m1) x -> x -> Bool) -> m () -> Reaction m a
@@ -95,6 +85,13 @@ data Reaction m a where
 getReactionMonad :: Reaction m a -> m ()
 getReactionMonad (BeforeReaction cond m) = m
 getReactionMonad (AfterReaction cond m) = m
+
+-- Design choice: Messages to clients entirely through separate messages, and logs are reinterpreted from effects
+-- Partial information managed by different messages with less information, no state tracking, no ability to refer to
+-- previous messages for granular information (the card that was drawn 2 turns ago was a ...)
+-- Clients don't reconstruct state, they just display the required information and collect the moves.
+-- Clients don't see the card logic causality, they just see streams of events and must infer themselves.
+-- How to make sure enough information gets through? We need a protocol.
 
 -- Obvious design choice: Separate player IO and clients out from server/central logic.
 data PlayerIO m a where

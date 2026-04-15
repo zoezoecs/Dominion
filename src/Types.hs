@@ -59,6 +59,12 @@ instance FromJSON PlayerPosition
 instance ToJSON InvalidMove where
     toEncoding = genericToEncoding defaultOptions
 instance FromJSON InvalidMove
+instance ToJSON TempId where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON TempId
+instance ToJSON ObscuredCard where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON ObscuredCard
 
 
 

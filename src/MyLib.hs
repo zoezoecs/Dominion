@@ -6,6 +6,7 @@ import Polysemy.State
 import Control.Monad
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.ByteString.Lazy
  
 import Base
 import Types
@@ -57,7 +58,7 @@ createCards = mapM createCards''
 initStacks :: [Player] -> [CardFace] -> Map Position [Card]
 initStacks pl cf = run . evalState @Int 0 . createCards $ boardInitState pl cf
 
-main :: [Player] -> [CardFace] -> IO ([(Player, String)], ())
+main :: [Player] -> [CardFace] -> IO ([(Player, LazyByteString)], ())
 main pl cf = runM .
              interpPlayerIO .
              interpRandomWithSeed 4 . -- interpRandomGlobal
@@ -69,7 +70,7 @@ main pl cf = runM .
              interpStateRead .
              runOutputList .
              runCorrelation . 
-             logPlayerToString @_ @PotentiallyObscured .
+             logPlayerToString @PotentiallyObscured .
              logToPlayerLog .
              interpGameRules .
              interpCardEffects logEffects.
