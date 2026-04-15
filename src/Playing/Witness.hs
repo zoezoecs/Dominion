@@ -137,7 +137,8 @@ logCardMap' WitnessUnit f (LogAct pl c) = LogAct pl (f c)
 logCardMap' WitnessUnit f (LogTreasure pl c) = LogTreasure pl (f c)
 logCardMap' witness f (LogEffect (LogEvent eff) ans) = LogEffect (LogEvent (cardMap f eff witness)) (witnessMap f witness ans)
 
-
+type family EffectResult (card :: *) where
+  EffectResult card = Maybe card
 
 -- POLYSEMY ANNOYING:
 -- We have to monomorphise here for a = CardEffects m a to avoid Polysemy thinking Loggable (CardEffects m a) is higher order.
@@ -158,3 +159,10 @@ showLoggable (TrashCard pl c) = LogEvent (TrashCard pl c)
 showLoggable (Reveal pl c) = LogEvent (Reveal pl c)
 showLoggable (TopDeck pl c) = LogEvent (TopDeck pl c)
 showLoggable (GainCardTo pl c pos) = LogEvent (GainCardTo pl c pos)
+
+-- data FOCardEffects a = MkFOCE {getFOCE :: forall k (m :: k). CardEffects m a}
+-- toFOCE :: CardEffects m a -> FOCardEffects a
+-- toFOCE x = MkFOCE $ cardEffectrMap x
+-- 
+-- fromFOCE :: FOCardEffects a -> CardEffects m a
+-- fromFOCE (MkFOCE x) = x

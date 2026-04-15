@@ -14,24 +14,24 @@ import Base
 import Types
 import Effects
 
-effectPipe :: (Member (Log Card) r, Member CardEffects r) => Sem r b -> (Answer b -> CardEffects'' Card) -> Sem r b
-effectPipe a b = a >>=/ (logEffect . b . Ans)
+effectPipe :: (Member (Log Card) r, Member CardEffects r) => Sem r b -> CardEffects' Card m b -> Sem r b
+effectPipe a b = a >>=/ (logEffect . LogEvent b)
 
--- TODO: Fix boilerplate. Its annoying I can't even use @ patterns...
--- TODO: This should be a lot more granular, since not every player gets every event at the same level of knowledge.
 logEffects :: Members '[CardEffects, Log Card] r => Sem r a -> Sem r a
-logEffects = intercept $ \case
-  ModifyActions n -> effectPipe (modifyActions n) (XModifyActions n)
-  ModifyBuys n -> effectPipe (modifyBuys n) (XModifyBuys n)
-  ModifyCurrency n -> effectPipe (modifyCurrency n) (XModifyCurrency n)
-  ActivateCard pl c -> effectPipe (activateCard pl c) (XActivateCard pl c)
-  DrawOnce pl -> effectPipe (drawOnce pl) (XDrawOnce pl)
-  BlockOne pl c -> effectPipe (blockOne pl c) (XBlockOne pl c)
-  Discard pl c -> effectPipe (discard pl c) (XDiscard pl c)
-  TrashCard pl c -> effectPipe (trashCard pl c) (XTrashCard pl c)
-  Reveal pl c -> effectPipe (reveal pl c) (XReveal pl c)
-  TopDeck pl c -> effectPipe (topDeck pl c) (XTopDeck pl c)
-  GainCardTo pl c pos -> effectPipe (gainCardTo pl c pos) (XGainCardTo pl c pos)
+logEffects = intercept (\cardEff -> effectPipe (send (cardEffectrMap cardEff)) cardEff)
+--logEffects :: Members '[CardEffects, Log Card] r => Sem r a -> Sem r a
+--logEffects = intercept $ \case
+--  ModifyActions n -> effectPipe (modifyActions n) (ModifyActions n)
+--  ModifyBuys n -> effectPipe (modifyBuys n) (ModifyBuys n)
+--  ModifyCurrency n -> effectPipe (modifyCurrency n) (ModifyCurrency n)
+--  ActivateCard pl c -> effectPipe (activateCard pl c) (ActivateCard pl c)
+--  DrawOnce pl -> effectPipe (drawOnce pl) (DrawOnce pl)
+--  BlockOne pl c -> effectPipe (blockOne pl c) (BlockOne pl c)
+--  Discard pl c -> effectPipe (discard pl c) (Discard pl c)
+--  TrashCard pl c -> effectPipe (trashCard pl c) (TrashCard pl c)
+--  Reveal pl c -> effectPipe (reveal pl c) (Reveal pl c)
+--  TopDeck pl c -> effectPipe (topDeck pl c) (TopDeck pl c)
+--  GainCardTo pl c pos -> effectPipe (gainCardTo pl c pos) (GainCardTo pl c pos)
 
 logTurn :: Members '[GameLoop, Log Card] r => Sem r a -> Sem r a
 logTurn = intercept $ \case
@@ -49,17 +49,17 @@ logToPlayerLog = interpret $ \case
   LogBuy player cf -> logAll0 (LogBuy player cf)
   LogAct player card -> logAll (LogAct player) card
   LogTreasure player card -> logAll (LogTreasure player) card
-  LogEffect (XModifyActions n (Ans m)) -> logEffectAll0 (XModifyActions n (Ans m))
-  LogEffect (XModifyBuys n (Ans m)) -> logEffectAll0 (XModifyBuys n (Ans m))
-  LogEffect (XModifyCurrency n (Ans m)) -> logEffectAll0 (XModifyCurrency n (Ans m))
-  LogEffect (XActivateCard pl c (Ans ())) -> logEffectAll (\cx -> XActivateCard pl cx (Ans ())) c
-  LogEffect (XDrawOnce pl (Ans mc)) -> logRedactedEff' pl (XDrawOnce pl) (traverse dontRedact mc) (traverse redactEff mc)
-  LogEffect (XBlockOne pl c (Ans ())) -> logEffectAll (\cx -> XBlockOne pl cx (Ans ())) c
-  LogEffect (XDiscard pl c (Ans ())) -> logRedactedEff pl ((\x -> XDiscard pl x (Ans ())) <$> dontRedact c) ((\x -> XDiscard pl x (Ans ())) <$> redactEff c)
-  LogEffect (XTrashCard pl c (Ans ())) -> logRedactedEff pl ((\x -> XTrashCard pl x (Ans ())) <$> dontRedact c) ((\x -> XTrashCard pl x (Ans ())) <$> redactEff c)
-  LogEffect (XReveal pl c (Ans ())) -> logEffectAll (\cx -> XReveal pl cx (Ans ())) c
-  LogEffect (XTopDeck pl c (Ans ())) -> logRedactedEff pl ((\x -> XTopDeck pl x (Ans ())) <$> dontRedact c) ((\x -> XTopDeck pl x (Ans ())) <$> redactEff c)
-  LogEffect (XGainCardTo pl cf pos (Ans mcard)) -> logRedactedEff' pl (XGainCardTo pl cf pos) (traverse dontRedact mcard) (traverse redactEff mcard)
+  LogEffect (LogEvent (ModifyActions n) m) -> logEffectAll0 (LogEvent (ModifyActions n) (m))
+  LogEffect (LogEvent (ModifyBuys n) m) -> logEffectAll0 (LogEvent (ModifyBuys n) (m))
+  LogEffect (LogEvent (ModifyCurrency n) m) -> logEffectAll0 (LogEvent (ModifyCurrency n) (m))
+  LogEffect (LogEvent (ActivateCard pl c) ()) -> logEffectAll (\cx -> LogEvent (ActivateCard pl cx) (())) c
+  LogEffect (LogEvent (DrawOnce pl) mc) -> logRedactedEff' pl (LogEvent (DrawOnce pl)) (traverse dontRedact mc) (traverse redactEff mc)
+  LogEffect (LogEvent (BlockOne pl c) ()) -> logEffectAll (\cx -> LogEvent (BlockOne pl cx) ()) c
+  LogEffect (LogEvent (Discard pl c) ()) -> logRedactedEff pl ((\x -> LogEvent (Discard pl x) ()) <$> dontRedact c) ((\x -> LogEvent (Discard pl x) ()) <$> redactEff c)
+  LogEffect (LogEvent (TrashCard pl c) ()) -> logRedactedEff pl ((\x -> LogEvent (TrashCard pl x) ()) <$> dontRedact c) ((\x -> LogEvent (TrashCard pl x) ()) <$> redactEff c)
+  LogEffect (LogEvent (Reveal pl c) ()) -> logEffectAll (\cx -> LogEvent (Reveal pl cx) ()) c
+  LogEffect (LogEvent (TopDeck pl c) ()) -> logRedactedEff pl ((\x -> LogEvent (TopDeck pl x) ()) <$> dontRedact c) ((\x -> LogEvent (TopDeck pl x) ()) <$> redactEff c)
+  LogEffect (LogEvent (GainCardTo pl cf pos) mcard) -> logRedactedEff' pl (LogEvent (GainCardTo pl cf pos)) (traverse dontRedact mcard) (traverse redactEff mcard)
   where
     logAll0 :: (Members '[LogToPlayer PotentiallyObscured, Obscure, BoardStateRead] r) => (forall card. Log card (Sem r) ()) -> Sem r ()
     logAll0 x = void $ applyToAll (logToPlayer @PotentiallyObscured (logCardMap Left x))
@@ -69,10 +69,10 @@ logToPlayerLog = interpret $ \case
       tid <- getTempId x
       void $ applyToAll (logToPlayer @PotentiallyObscured (logCardMap (\y -> Left (y, tid)) (f x)))
 
-    logEffectAll0 :: (Members '[LogToPlayer PotentiallyObscured, BoardStateRead] r) => (forall card. CardEffects'' card) -> Sem r ()
+    logEffectAll0 :: (Members '[LogToPlayer PotentiallyObscured, BoardStateRead] r) => (forall card. LoggedEvent card) -> Sem r ()
     logEffectAll0 a = void $ applyToAll $ logToPlayer . logCardMap Left $ LogEffect a
 
-    logEffectAll :: (Members '[LogToPlayer PotentiallyObscured, Obscure, BoardStateRead] r) => (Card -> CardEffects'' Card) -> Card -> Sem r ()
+    logEffectAll :: (Members '[LogToPlayer PotentiallyObscured, Obscure, BoardStateRead] r) => (Card -> LoggedEvent Card) -> Card -> Sem r ()
     logEffectAll f a = do
       tid <- getTempId a
       void $ applyToAll $ logToPlayer . logCardMap (\y -> Left (y, tid)) $ LogEffect (f a)
@@ -85,21 +85,21 @@ logToPlayerLog = interpret $ \case
 
     logRedactedEff' :: (Members '[LogToPlayer PotentiallyObscured, BoardStateRead] r) =>
                    Player ->
-                   (Answer x -> CardEffects'' PotentiallyObscured) ->
+                   (x -> LoggedEvent PotentiallyObscured) ->
                    Sem r x ->
                    Sem r x ->
                    Sem r ()
     logRedactedEff' pl effect_template secret_ans public_ans = do
       gottenSecretAns <- secret_ans
       gottenPublicAns <- public_ans
-      _ <- logToPlayer (LogEffect . effect_template . Ans $ gottenSecretAns) pl
-      _ <- applyToOthers pl (logToPlayer (LogEffect . effect_template . Ans $ gottenPublicAns))
+      _ <- logToPlayer (LogEffect . effect_template  $ gottenSecretAns) pl
+      _ <- applyToOthers pl (logToPlayer (LogEffect . effect_template $ gottenPublicAns))
       return ()
 
     logRedactedEff :: (Members '[LogToPlayer PotentiallyObscured, BoardStateRead] r) =>
                    Player ->
-                   Sem r (CardEffects'' PotentiallyObscured) ->
-                   Sem r (CardEffects'' PotentiallyObscured) ->
+                   Sem r (LoggedEvent PotentiallyObscured) ->
+                   Sem r (LoggedEvent PotentiallyObscured) ->
                    Sem r ()
     logRedactedEff pl secret_sem public_sem = do
       secret_eff <- secret_sem
@@ -108,13 +108,11 @@ logToPlayerLog = interpret $ \case
       _ <- applyToOthers pl (logToPlayer (LogEffect public_eff))
       return ()
 
-logPlayerToString :: (Member (Output (Player, String)) r, Show a) => Sem (LogToPlayer card: r) a -> Sem r a
-logPlayerToString = interpret $ \case
-  LogToPlayer (LogPlayerRoundStart pl) logpl -> output (logpl, show (LogPlayerRoundStart @Card pl))
-  LogToPlayer (LogBuy pl cf) logpl -> output (logpl, show (LogBuy @Card pl cf))
-  LogToPlayer (LogAct pl c) logpl -> output (logpl, show (LogAct pl c))
-  LogToPlayer (LogTreasure pl c) logpl -> output (logpl, show (LogTreasure pl c))
-  LogToPlayer (LogEffect eff) logpl -> output (logpl, show (LogEffect eff))
+logToString :: Log card m a -> String
+logToString = undefined
+
+logPlayerToString :: (Member (Output (Player, String)) r) => Sem (LogToPlayer card : r) a -> Sem r a
+logPlayerToString = interpret (\(LogToPlayer eff pl) -> output (pl, logToString eff))
 
 runObscure :: Member RandomUniqueId r => Sem (Obscure : r) a -> Sem (State (Map Card TempId) : r) a
 runObscure = reinterpret $ \case

@@ -95,6 +95,7 @@ library
                    Playing.InterpretIntercept,
                    Playing.RandomImpl,
                    Playing.Witness,
+                   Playing.FailedLog,
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -109,8 +110,13 @@ library
                       random^>=1.2.1.1,
                       mtl^>=2.3.1,
                       polysemy-plugin^>=0.4.5.2,
+                      constraints^>=0.14.2,
+                      constraints-extras^>=0.4.0.1,
                       template-haskell^>=2.20.0.0,
                       th-abstraction^>=0.7.0.0,
+                      some^>=1.0.6,
+                      aeson^>=2.2.3.0,
+                      aeson-gadt-th^>=0.2.5.2,
 
 
     -- Directories containing source files.

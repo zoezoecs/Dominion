@@ -69,7 +69,7 @@ main pl cf = runM .
              interpStateRead .
              runOutputList .
              runCorrelation . 
-             logPlayerToString @_ @_ @PotentiallyObscured.
+             logPlayerToString @_ @PotentiallyObscured .
              logToPlayerLog .
              interpGameRules .
              interpCardEffects logEffects.
@@ -79,9 +79,12 @@ main pl cf = runM .
              playGame
 
 -- TODO: 
--- Implement reactions, add all cards
+-- Add all cards
 -- Implement PlayerIO and data serialisation
 -- Implement "Get Valid Moves" "for every PlayerIO prompt"
+-- Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions?
+-- See if I can fix the logging system effect types
+-- See if I can fix the effect hierarchy
 
 -- consider card semantics locations
 -- Consider Data formatting json vs haskell

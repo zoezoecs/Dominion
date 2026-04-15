@@ -1,4 +1,9 @@
-{-# LANGUAGE TemplateHaskell, DeriveFunctor #-}
+{-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveGeneric #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 module Effects where
 
@@ -13,6 +18,19 @@ import System.Random.Stateful
 import Base
 import Internal.TH
 import Types
+
+
+
+import Types
+
+import Data.Aeson
+import Data.Aeson.GADT.TH
+
+import Data.Constraint.Extras
+
+import Data.Type.Equality
+import Data.GADT.Compare
+import Data.Some.Newtype
 
 data Stacks m a where
   ActivePositions :: Stacks m [Position]
@@ -46,14 +64,8 @@ data BoardStateRead m a where
   GetTopNCard :: Player -> Int -> BoardStateRead m (Maybe Card)
   GetDiscardPile :: Player -> BoardStateRead m [Card]
   IsGameOver :: BoardStateRead m Bool
-  -- IsValidCardPlay :: Player -> Card -> BoardStateRead m (Either InvalidMove ())
-  -- GetReactions :: Player -> BoardStateRead m [Reaction m]
 makeSem ''BoardStateRead
 
--- POLYSEMY ANNOYING: I really want to make Card polymorphic, but this raises so many type inference issues.
--- I can get makeSem to work if I add polysemy-plugin, but the smart constructors are still complaining about
--- inability to infer the card membership. 
--- Most wrapper ideas make pattern matching and interpretation kind of annoying, and sometimes change smart constructor names.
 data CardEffects' card m a where
   -- Modify game resources
   ModifyActions :: Int -> CardEffects' card m Int
@@ -63,7 +75,7 @@ data CardEffects' card m a where
   ActivateCard :: Player -> card -> CardEffects' card m () -- This just activates a given card with a focus on a player, think Throne Room. 
   -- Note that if you activate a Moat, the card effect depends on the specific card, not just the card face - it will reveal a different card.
   DrawOnce :: Player -> CardEffects' card m (Maybe card)  -- Note Maybe signals no cards in both draw AND discard
-  BlockOne :: Player -> card -> CardEffects' card m () -- Blocks the next attack? This could so lead to a bug lmao...
+  BlockOne :: Player -> card -> CardEffects' card m () -- Blocks the next attack
   Discard :: Player -> card -> CardEffects' card m () -- NOTE: None of these are "discard FROM HAND" or anything
   TrashCard :: Player -> card -> CardEffects' card m ()
   Reveal :: Player -> card -> CardEffects' card m ()
@@ -71,6 +83,7 @@ data CardEffects' card m a where
   GainCardTo :: Player -> CardFace -> PlayerPosition -> CardEffects' card m (Either InvalidGain card)
 makeSemMonomorphised ''Card ''CardEffects'
 deriving instance (Show a, Show card) => Show (CardEffects' card m a)
+deriving instance (Eq card) => Eq (CardEffects' card m a)
 type CardEffects = CardEffects' Card
 
 cardEffectrMap :: CardEffects' card r1 a -> CardEffects' card r2 a
@@ -87,44 +100,77 @@ cardEffectrMap (Reveal pl c) = Reveal pl c
 cardEffectrMap (TopDeck pl c) = TopDeck pl c
 cardEffectrMap (GainCardTo pl cf pp) = GainCardTo pl cf pp
 
--- data FOCardEffects a = MkFOCE {getFOCE :: forall k (m :: k). CardEffects m a}
--- toFOCE :: CardEffects m a -> FOCardEffects a
--- toFOCE x = MkFOCE $ cardEffectrMap x
--- 
--- fromFOCE :: FOCardEffects a -> CardEffects m a
--- fromFOCE (MkFOCE x) = x
+deriveJSONGADT ''CardEffects'
+instance (c Int, c (), c (Maybe card), c (Either InvalidGain card)) 
+    => Has c (CardEffects' card m) where
+  has eff k = case eff of
+    ModifyActions{}  -> k
+    ModifyBuys{}     -> k
+    ModifyCurrency{} -> k
+    DrawOnce{}       -> k
+    GainCardTo{}     -> k
+    ActivateCard{}   -> k
+    BlockOne{}       -> k
+    Discard{}        -> k
+    TrashCard{}      -> k
+    Reveal{}         -> k
+    TopDeck{}        -> k
+
+instance Eq card => GEq (CardEffects' card m) where
+  geq (ModifyActions n1) (ModifyActions n2) = if n1 == n2 then Just Refl else Nothing
+  geq (ModifyBuys n1) (ModifyBuys n2) = if n1 == n2 then Just Refl else Nothing
+  geq (ModifyCurrency n1) (ModifyCurrency n2) = if n1 == n2 then Just Refl else Nothing
+  geq (ActivateCard p1 c1) (ActivateCard p2 c2) = if p1 == p2 && c1 == c2 then Just Refl else Nothing
+  geq (DrawOnce p1) (DrawOnce p2) = if p1 == p2 then Just Refl else Nothing
+  geq (BlockOne p1 c1) (BlockOne p2 c2) = if p1 == p2 && c1 == c2 then Just Refl else Nothing
+  geq (Discard p1 c1) (Discard p2 c2) = if p1 == p2 && c1 == c2 then Just Refl else Nothing
+  geq (TrashCard p1 c1) (TrashCard p2 c2) = if p1 == p2 && c1 == c2 then Just Refl else Nothing
+  geq (Reveal p1 c1) (Reveal p2 c2) = if p1 == p2 && c1 == c2 then Just Refl else Nothing
+  geq (TopDeck p1 c1) (TopDeck p2 c2) = if p1 == p2 && c1 == c2 then Just Refl else Nothing
+  geq (GainCardTo p1 f1 pos1) (GainCardTo p2 f2 pos2) = if p1 == p2 && f1 == f2 && pos1 == pos2 then Just Refl else Nothing
+  geq _ _ = Nothing
 
 
-newtype Answer a = Ans {getAns :: a} deriving (Eq, Ord, Show, Functor)
-data CardEffects'' card where
-  -- Modify game resources
-  XModifyActions ::  Int  -> Answer Int -> CardEffects'' card
-  XModifyBuys ::  Int  -> Answer Int -> CardEffects'' card
-  XModifyCurrency ::  Int  -> Answer Int -> CardEffects'' card
+data LoggedEvent card = forall m a. LogEvent (CardEffects' card m a) a
 
-  XActivateCard ::  Player -> card  -> Answer () -> CardEffects'' card
-  XDrawOnce ::  Player  -> Answer (Maybe card) -> CardEffects'' card
-  XBlockOne ::  Player -> card  -> Answer () -> CardEffects'' card 
-  XDiscard ::  Player -> card  -> Answer () -> CardEffects'' card
-  XTrashCard ::  Player -> card  -> Answer () -> CardEffects'' card
-  XReveal ::  Player -> card  -> Answer () -> CardEffects'' card
-  XTopDeck ::  Player -> card  -> Answer () -> CardEffects'' card
-  XGainCardTo ::  Player -> CardFace -> PlayerPosition  -> Answer (Either InvalidGain card) -> CardEffects'' card
-deriving instance Show card => Show (CardEffects'' card)
-deriving instance Functor CardEffects''
+instance Functor LoggedEvent where
+  fmap _ (LogEvent (ModifyActions n) x) = LogEvent (ModifyActions n) x
+  fmap _ (LogEvent (ModifyBuys n) x) = LogEvent (ModifyBuys n) x
+  fmap _ (LogEvent (ModifyCurrency n) x) = LogEvent (ModifyCurrency n) x
+  fmap f (LogEvent (ActivateCard pl c) x) = LogEvent (ActivateCard pl (f c)) x
+  fmap f (LogEvent (DrawOnce pl) x) = LogEvent (DrawOnce pl) (fmap f x)
+  fmap f (LogEvent (BlockOne pl c) x) = LogEvent (BlockOne pl (f c)) x
+  fmap f (LogEvent (Discard pl c) x) = LogEvent (Discard pl (f c)) x
+  fmap f (LogEvent (TrashCard pl c) x) = LogEvent (TrashCard pl (f c)) x
+  fmap f (LogEvent (Reveal pl c) x) = LogEvent (Reveal pl (f c)) x
+  fmap f (LogEvent (TopDeck pl c) x) = LogEvent (TopDeck pl (f c)) x
+  fmap f (LogEvent (GainCardTo pl cf pp) x) = LogEvent (GainCardTo pl cf pp) (fmap f x)
 
-removeAParameter :: CardEffects' card m a -> a -> CardEffects'' card
-removeAParameter ((ModifyActions n)) x = XModifyActions n (Ans x)
-removeAParameter ((ModifyBuys n)) x = XModifyBuys n (Ans x)
-removeAParameter ((ModifyCurrency n)) x = XModifyCurrency n (Ans x)
-removeAParameter ((ActivateCard pl c)) x = XActivateCard pl c (Ans x)
-removeAParameter ((DrawOnce pl)) x = XDrawOnce pl (Ans x)
-removeAParameter ((BlockOne pl c)) x = XBlockOne pl c (Ans x)
-removeAParameter ((Discard pl c)) x = XDiscard pl c (Ans x)
-removeAParameter ((TrashCard pl c)) x = XTrashCard pl c (Ans x)
-removeAParameter ((Reveal pl c)) x = XReveal pl c (Ans x)
-removeAParameter ((TopDeck pl c)) x = XTopDeck pl c (Ans x)
-removeAParameter ((GainCardTo pl cf pos)) x = XGainCardTo pl cf pos (Ans x)
+instance ToJSON card => ToJSON (LoggedEvent card) where
+  toJSON (LogEvent eff result) =
+    has @ToJSON eff $ object
+      [ "effect" .= toJSON eff
+      , "result" .= toJSON result
+      ]
+
+instance FromJSON card => FromJSON (LoggedEvent card) where
+  parseJSON = withObject "LoggedEvent" $ \o -> do
+    Some eff <- o .: "effect"
+    has @FromJSON eff $ do
+      result <- parseJSON =<< o .: "result"
+      pure (LogEvent eff result)
+
+instance Eq card => Eq (LoggedEvent card) where
+  LogEvent eff1 result1 == LogEvent eff2 result2 =
+    case geq eff1 (cardEffectrMap eff2) of
+      Nothing   -> False
+      Just Refl -> has @Eq eff1 $ result1 == result2
+
+instance Show card => Show (LoggedEvent card) where
+  show (LogEvent eff result) =
+    has @Show eff $ "LogEvent (" <> show eff <> ") (" <> show result <> ")"
+
+
 
 drawCard :: Member CardEffects r => Player -> Int -> Sem r [Card]
 drawCard player n = fmap catMaybes $ replicateM n $ drawOnce player
@@ -165,9 +211,9 @@ makeSem ''GameRules
 data Log card m a where
   LogPlayerRoundStart :: Player -> Log card m ()
   LogBuy :: Player -> CardFace -> Log card m ()
-  LogAct :: Show card => Player -> card -> Log card m ()
-  LogTreasure :: Show card => Player -> card -> Log card m ()
-  LogEffect :: (Show card) => CardEffects'' card -> Log card m ()
+  LogAct :: Player -> card -> Log card m ()
+  LogTreasure :: Player -> card -> Log card m ()
+  LogEffect :: LoggedEvent card -> Log card m ()
   -- POLYSEMY ANNOYING: This constructor runs in to a _lot_ of issues with unifying the `a` type variable when we try to map the card variable
   -- to inject into an Either type. We can give up the type level guarantee that the result of an effect matches the actual effect, since we
   -- have to do lots of boilerplate enumeration anyways for everything. If we could make the interpreters have boilerplate free TH free code,
@@ -184,8 +230,9 @@ data Log card m a where
   -- LogTopDeck :: Player -> card -> Log card m ()
   -- LogGainCardTo :: Answer (Either InvalidGain card) -> Player -> CardFace -> PlayerPosition -> Log card m ()
 makeSemMonomorphised ''Card ''Log
+deriveJSONGADT ''Log
 
-logCardMap :: (Show c2) => (c1 -> c2) -> Log c1 m a -> Log c2 m a
+logCardMap :: (c1 -> c2) -> Log c1 m a -> Log c2 m a
 logCardMap f (LogPlayerRoundStart pl) = LogPlayerRoundStart pl
 logCardMap f (LogBuy pl cf) = LogBuy pl cf
 logCardMap f (LogAct pl c) = LogAct pl (f c)
@@ -193,12 +240,10 @@ logCardMap f (LogTreasure pl c) = LogTreasure pl (f c)
 logCardMap f (LogEffect eff) = LogEffect (fmap f eff)
 
 data LogToPlayer card m a where
-  LogToPlayer :: Log card m a -> Player -> LogToPlayer card m a
+  LogToPlayer :: Log card m () -> Player -> LogToPlayer card m ()
 makeSem ''LogToPlayer
 
-deriving instance (Show a, Show card) => Show (Log card m a)
-
-newtype TempIdMap = TempIdMap (Map Card Int)
+-- deriving instance (Show a, Show card) => Show (Log card m a)
 
 data Obscure m a where
   GetTempId :: Card -> Obscure m TempId

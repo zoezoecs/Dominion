@@ -1,5 +1,8 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Types where
 
+import GHC.Generics
+import Data.Aeson
 import Data.Map (Map)
 import qualified Data.Map as Map
 
@@ -8,24 +11,64 @@ data CardFace = Copper | Curse | Estate | Silver | Duchy | Gold | Province |
                 Cellar | Chapel | Moat | Harbinger | Merchant | Vassal | Village |
                 Workshop | Bureaucrat | Gardens | Militia |  Moneylender | Poacher |
                 Remodel | Smithy | ThroneRoom | Bandit | CouncilRoom | Festival | Laboratory |
-                Library | Market | Mine | Sentry | Witch | Artisan  deriving (Eq, Ord, Show)
+                Library | Market | Mine | Sentry | Witch | Artisan  deriving (Eq, Ord, Show, Generic)
 -- Design choice: all cards have ids and aren't just handled as cards.
-data Card = MkCard Int CardFace deriving (Eq, Ord, Show)
-newtype TempId = MkTempId Int deriving (Eq, Ord, Show)
-newtype ObscuredCard = Obscured TempId deriving (Eq, Ord, Show)
+data Card = MkCard Int CardFace deriving (Eq, Ord, Show, Generic)
+newtype TempId = MkTempId Int deriving (Eq, Ord, Show, Generic)
+newtype ObscuredCard = Obscured TempId deriving (Eq, Ord, Show, Generic)
 type PotentiallyObscured = Either (Card, TempId) ObscuredCard
 
-data CardTypes = CardAttack | CardReaction | CardAction | CardTreasure | CardVictory deriving (Eq, Ord)
-newtype Player = MkPlayer Int deriving (Ord, Eq, Show)
+data CardTypes = CardAttack | CardReaction | CardAction | CardTreasure | CardVictory deriving (Eq, Ord, Show, Generic)
+newtype Player = MkPlayer Int deriving (Ord, Eq, Show, Generic)
 
 -- Obvious design choice: Representing errors and card positions as data
-data InvalidMove = NoActions | CardPositionIncorrect deriving Show
-data InvalidBuy = NoBuys | NoMoney | BadGain InvalidGain deriving Show
-data InvalidGain = NotInKingdom | EmptySupply | GainError deriving Show
-data TreasureError = NotATresure deriving Show
-data InvalidReaction = NoCard | ConditionNotMet
+data InvalidMove = NoActions | CardPositionIncorrect deriving (Eq, Ord, Show, Generic)
+data InvalidBuy = NoBuys | NoMoney | BadGain InvalidGain deriving (Eq, Ord, Show, Generic)
+data InvalidGain = NotInKingdom | EmptySupply | GainError deriving (Eq, Ord, Show, Generic)
+data TreasureError = NotATresure deriving (Eq, Ord, Show, Generic)
+data InvalidReaction = NoCard | ConditionNotMet deriving (Eq, Ord, Show, Generic)
 
-data PlayerPosition = PlayerDeck | PlayerDiscardPile | PlayerHand | PlayerInPlay | PlayerSetAside deriving (Eq, Ord, Show)
+data PlayerPosition = PlayerDeck | PlayerDiscardPile | PlayerHand | PlayerInPlay | PlayerSetAside deriving (Eq, Ord, Show, Generic)
+
+
+
+instance ToJSON CardFace where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON CardFace
+instance ToJSON Card where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON Card
+instance ToJSON Player where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON Player
+instance ToJSON InvalidBuy where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON InvalidBuy
+instance ToJSON InvalidGain where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON InvalidGain
+instance ToJSON TreasureError where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON TreasureError
+instance ToJSON InvalidReaction where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON InvalidReaction
+instance ToJSON PlayerPosition where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON PlayerPosition
+instance ToJSON InvalidMove where
+    toEncoding = genericToEncoding defaultOptions
+instance FromJSON InvalidMove
+
+
+
+
+
+
+
+
+
+
 -- data Kingdom = Kingdom
 -- data Treasure = Treasure
 -- data CurseSupply = CurseSupplye
@@ -35,7 +78,7 @@ data PlayerPosition = PlayerDeck | PlayerDiscardPile | PlayerHand | PlayerInPlay
 -- If I break the card faces up into subsets its annoying to write "Gains a Copper"
 -- But if I do this its a little annoying to say "Gain a Treasure"
 -- c.f. Gain a treasure costing up to..
-data Position = PlayerCard Player PlayerPosition | Supply CardFace | Trash deriving (Eq, Ord, Show)
+data Position = PlayerCard Player PlayerPosition | Supply CardFace | Trash deriving (Eq, Ord, Show, Generic)
 
 allPositions :: [PlayerPosition]
 allPositions = [PlayerDeck, PlayerDiscardPile, PlayerHand, PlayerInPlay, PlayerSetAside]
