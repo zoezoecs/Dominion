@@ -11,6 +11,8 @@ import Data.Constraint.Extras
 import Data.Type.Equality
 import Data.GADT.Compare
 import Data.Some.Newtype
+import Data.Functor.Identity
+import Data.Functor.Const
 
 import Types
 import Effects.CardEffects
@@ -18,18 +20,27 @@ import Internal.TH
 
 data LoggedEvent card = forall m a. LogEvent (CardEffects' card m a) a
 
+traverse' :: (Applicative f) => (c1 -> f c2) -> LoggedEvent c1 -> f (LoggedEvent c2)
+traverse' f (LogEvent (ModifyActions n) x) = pure $ LogEvent (ModifyActions n) x
+traverse' f (LogEvent (ModifyBuys n) x) = pure $ LogEvent (ModifyBuys n) x
+traverse' f (LogEvent (ModifyCurrency n) x) = pure $ LogEvent (ModifyCurrency n) x
+traverse' f (LogEvent (ActivateCard pl c) ()) = fmap (\a -> LogEvent (ActivateCard pl a) ()) (f c)
+traverse' f (LogEvent (DrawOnce pl) x) = fmap (LogEvent (DrawOnce pl)) (traverse f x)
+traverse' f (LogEvent (BlockOne pl c) ()) = fmap (\a -> LogEvent (BlockOne pl a) ()) (f c)
+traverse' f (LogEvent (Discard pl c) ()) = fmap (\a -> LogEvent (Discard pl a) ()) (f c)
+traverse' f (LogEvent (TrashCard pl c) ()) = fmap (\a -> LogEvent (TrashCard pl a) ()) (f c)
+traverse' f (LogEvent (Reveal pl c) ()) = fmap (\a -> LogEvent (Reveal pl a) ()) (f c)
+traverse' f (LogEvent (TopDeck pl c) ()) = fmap (\a -> LogEvent (TopDeck pl a) ()) (f c)
+traverse' f (LogEvent (GainCardTo pl cf pos) x) = fmap (LogEvent (GainCardTo pl cf pos)) (traverse f x)
+
 instance Functor LoggedEvent where
-  fmap _ (LogEvent (ModifyActions n) x) = LogEvent (ModifyActions n) x
-  fmap _ (LogEvent (ModifyBuys n) x) = LogEvent (ModifyBuys n) x
-  fmap _ (LogEvent (ModifyCurrency n) x) = LogEvent (ModifyCurrency n) x
-  fmap f (LogEvent (ActivateCard pl c) x) = LogEvent (ActivateCard pl (f c)) x
-  fmap f (LogEvent (DrawOnce pl) x) = LogEvent (DrawOnce pl) (fmap f x)
-  fmap f (LogEvent (BlockOne pl c) x) = LogEvent (BlockOne pl (f c)) x
-  fmap f (LogEvent (Discard pl c) x) = LogEvent (Discard pl (f c)) x
-  fmap f (LogEvent (TrashCard pl c) x) = LogEvent (TrashCard pl (f c)) x
-  fmap f (LogEvent (Reveal pl c) x) = LogEvent (Reveal pl (f c)) x
-  fmap f (LogEvent (TopDeck pl c) x) = LogEvent (TopDeck pl (f c)) x
-  fmap f (LogEvent (GainCardTo pl cf pp) x) = LogEvent (GainCardTo pl cf pp) (fmap f x)
+    fmap f = runIdentity . traverse (Identity . f)
+
+instance Foldable LoggedEvent where
+    foldMap f = getConst . traverse (Const . f)
+
+instance Traversable LoggedEvent where
+    traverse = traverse'
 
 instance ToJSON card => ToJSON (LoggedEvent card) where
   toJSON (LogEvent eff result) =

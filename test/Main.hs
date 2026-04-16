@@ -11,6 +11,7 @@ main = putStrLn "Test suite not yet implemented."
 -- Game Logic: Probably just integration tests and regression tests.
 -- PlayerIO get legal actions returns exactly the legal actions
 -- Serialisation: Round trips
+-- Traversable laws
 
 -- Regression testing
 -- Check basic game rules are upheld properly, property test over all cardfaces and so on

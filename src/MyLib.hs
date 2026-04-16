@@ -86,8 +86,8 @@ main pl cf = runM .
 -- Add all cards
 -- Implement "Get Valid Moves" "for every PlayerIO prompt"
 -- Implement playerIO no actions immediate return
--- Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions?
--- See if I can fix the logging system effect types
+-- Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions? Relevant for player logging and especially reactions.
+-- See if I can fix the logging system ease of use
 -- See if I can fix the effect hierarchy
 
 -- consider card semantics locations
