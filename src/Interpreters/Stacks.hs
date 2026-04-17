@@ -8,6 +8,7 @@ import Control.Monad
 import Data.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Debug.Trace
 
 import Types
 import Effects
@@ -46,6 +47,8 @@ interpStacks cfg = interpret $ \case
         let stack1 = unsafeLookup l1 cardMap
         let stack2 = unsafeLookup l2 cardMap
         when (null stack1) $ interpStacks cfg $ refill cfg l1
+        cardMap <- get @(Map Position [Card])
+        let stack1 = unsafeLookup l1 cardMap
         case stack1 of
             []                -> return Nothing
             (x:xs)            -> do
