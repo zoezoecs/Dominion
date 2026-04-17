@@ -58,6 +58,6 @@ boardInitState :: [Player] -> [CardFace] -> Map Position [(CardFace, Int)]
 boardInitState pl cf = Map.unions [setPlayerCards, initPlayerPos, initSetSupply, initSetTrash]
   where
     initPlayerPos = Map.fromList $ map (\x -> (x,[])) $ liftA2 PlayerCard pl allPositions
-    setPlayerCards = Map.fromList [(PlayerCard p PlayerDeck, [(Estate, 3)]) | p <- pl]
+    setPlayerCards = Map.fromList [(PlayerCard p PlayerDiscardPile, [(Estate, 3)]) | p <- pl]
     initSetSupply = Map.mapKeys Supply $ fmap singleton $ Map.mapWithKey (,) $ initialMap pl cf
     initSetTrash = Map.fromList [(Trash, [])]

@@ -25,7 +25,7 @@ newtype Player = MkPlayer Int deriving (Ord, Eq, Show, Generic)
 data InvalidMove = NoActions | CardPositionIncorrect deriving (Eq, Ord, Show, Generic)
 data InvalidBuy = NoBuys | NoMoney | BadGain InvalidGain deriving (Eq, Ord, Show, Generic)
 data InvalidGain = NotInKingdom | EmptySupply | GainError deriving (Eq, Ord, Show, Generic)
-data TreasureError = NotATresure deriving (Eq, Ord, Show, Generic)
+data TreasureError = TreasurePositionIncorrect | NotATresure deriving (Eq, Ord, Show, Generic)
 data InvalidReaction = NoCard | ConditionNotMet deriving (Eq, Ord, Show, Generic)
 
 data PlayerPosition = PlayerDeck | PlayerDiscardPile | PlayerHand | PlayerInPlay | PlayerSetAside deriving (Eq, Ord, Show, Generic)
@@ -100,7 +100,8 @@ data GameState = MkGameState {
   current_buys :: Int,
   current_currency :: Int
   -- reactions :: [Reaction m]
-}
+} deriving (Eq, Ord, Show)
+
 modActions n gs = gs{current_actions=n+current_actions gs}
 modBuys n gs = gs{current_buys=n+current_buys gs}
 modCurrency n gs = gs{current_currency=n+current_currency gs}

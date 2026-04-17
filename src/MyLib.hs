@@ -14,6 +14,7 @@ import Data
 import Interpreters.Interpreters
 import Effects
 import GameLoop
+import Debug.Trace
 
 -- Missing tricky mechanics:
 -- "First time"
@@ -58,6 +59,11 @@ createCards = mapM createCards''
 initStacks :: [Player] -> [CardFace] -> Map Position [Card]
 initStacks pl cf = run . evalState @Int 0 . createCards $ boardInitState pl cf
 
+traceState :: (Member (State (GameState)) r) => Sem r a -> Sem r a
+traceState = intercept @(State GameState) $ \case
+  Get -> get
+  Put x -> put $ traceShowId x
+
 main :: [Player] -> [CardFace] -> IO ()
 main pl cf = runM .
              serialiseToTerminal .
@@ -69,6 +75,7 @@ main pl cf = runM .
              evalState @(Map Position [Card]) (initStacks pl cf) .
              interpStacks (stacksConfig pl).
              evalState @GameState (initGS pl) .
+             traceState .
              interpStateRead .
              -- runOutputList .
              runCorrelation . 
@@ -92,6 +99,7 @@ mainTest = main (MkPlayer <$> [1..3]) [Chapel, Harbinger]
 -- Implement playerIO no actions immediate return
 -- Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions? Relevant for player logging and especially reactions.
 -- See if I can fix the effect hierarchy
+-- We need interactive state queries lol
 
 -- consider card semantics locations
 -- Consider Data formatting json vs haskell

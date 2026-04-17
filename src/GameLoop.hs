@@ -44,7 +44,7 @@ playOneTreasure' player if_invalid = do
         Just card -> do
             msuccess <- playTreasure player card
             case msuccess of
-                Left NotATresure -> if_invalid
+                Left _ -> if_invalid
                 Right n -> return $ Just n
 
 playOneAction :: (Member GameLoop r, Member PlayerIO r) => Player -> Sem r (Maybe Card)

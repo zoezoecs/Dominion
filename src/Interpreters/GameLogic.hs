@@ -12,6 +12,7 @@ import Base
 import Types
 import Effects
 import Cards
+import Debug.Trace
 
 interpGameLoop :: Members '[Stacks, State GameState, BoardStateRead, GameRules, CardEffects] r => Sem (GameLoop : r) a -> Sem r a
 interpGameLoop = interpret $ \case
@@ -41,12 +42,13 @@ interpGameLoop = interpret $ \case
         activateCard player card
         return $ Right ()
   PlayTreasure player card -> do
-    case getCurrency card of
-      Just n -> do
+    valid_treasure <- canTreasure player card
+    case valid_treasure of
+      Right n -> do
         cardToPos card (PlayerCard player PlayerInPlay)
         modify $ modCurrency n
         return $ Right n
-      Nothing -> return $ Left NotATresure
+      Left err -> trace "weh" $ return $ Left err
   DrawTurnStart pl n -> drawCard pl n
   DiscardHandCleanup pl -> do
     hand <- getHand pl
@@ -84,6 +86,15 @@ interpGameRules = interpret $ \case
           | card `notElem` handCards = Left CardPositionIncorrect
           | otherwise                = Right ()
     return result
+  CanTreasure pl card -> do
+    handCards <- getHand pl
+    let result
+          | card `notElem` handCards = Left TreasurePositionIncorrect
+          | otherwise                = Right ()
+    case (result, getCurrency card) of
+      (Left err, _) -> return $ Left err
+      (Right (), Nothing) -> return $ Left NotATresure
+      (Right (), Just n) -> return $ Right n
   CanReact pl card ceff ma -> do
     handCards <- getHand pl
     let cond_true = case (getCardReaction . getFace $ card, ma) of

@@ -27,6 +27,7 @@ data Stacks m a where
   DrawTo :: Position -> Position -> Stacks m (Maybe Card)
   CardToPos :: Card -> Position -> Stacks m ()
 makeSem ''Stacks
+deriving instance Show (Stacks m a)
 
 data PileConfig t = PileConfig
   { refillFrom  :: Map Position Position,   -- when empty, refill from here
@@ -52,6 +53,7 @@ data BoardStateRead m a where
   GetDiscardPile :: Player -> BoardStateRead m [Card]
   IsGameOver :: BoardStateRead m Bool
 makeSem ''BoardStateRead
+deriving instance Show (BoardStateRead m a)
 
 applyTo :: (Monad m, Traversable t) => (a -> m b) -> m (t a) -> m (t b)
 applyTo f xs = mapM f =<< xs
@@ -71,6 +73,7 @@ data GameLoop m a where
   DrawTurnStart :: Player -> Int -> GameLoop m [Card] -- Draw from deck
   DiscardHandCleanup :: Player -> GameLoop m ()
 makeSem ''GameLoop
+deriving instance Show (GameLoop m a)
 
 data DoReaction m a where
   DoReaction :: Player -> Card -> (forall r. CardEffects r a) -> Maybe a -> DoReaction m (Either InvalidReaction ())
@@ -79,16 +82,13 @@ makeSem ''DoReaction
 data GameRules m a where
     CanBuy :: Player -> CardFace -> GameRules m (Either InvalidBuy ())
     CanAct :: Player -> Card -> GameRules m (Either InvalidMove ())
+    CanTreasure :: Player -> Card -> GameRules m (Either TreasureError Int)
     CanReact :: Player -> Card -> (forall r. CardEffects r a) -> Maybe a -> GameRules m (Either InvalidReaction ())
 makeSem ''GameRules
 
 data Reaction m a where
     BeforeReaction :: (forall m1 x. CardEffects (Sem m1) x -> Bool) -> m () -> Reaction m a
     AfterReaction :: (forall m1 x. CardEffects (Sem m1) x -> x -> Bool) -> m () -> Reaction m a
-
-getReactionMonad :: Reaction m a -> m ()
-getReactionMonad (BeforeReaction cond m) = m
-getReactionMonad (AfterReaction cond m) = m
 
 -- Design choice: Messages to clients entirely through separate messages, and logs are reinterpreted from effects
 -- Partial information managed by different messages with less information, no state tracking, no ability to refer to
@@ -105,10 +105,12 @@ makeSem ''DataSerialised
 data RandomShuffle m a where
     RandomShuffle :: [a] -> RandomShuffle m [a]
 makeSem ''RandomShuffle
+deriving instance Show a => Show (RandomShuffle m a)
 
 data RandomUniqueId m a where
   RandomUniqueId :: RandomUniqueId m Int
 makeSem ''RandomUniqueId
+deriving instance Show (RandomUniqueId m a)
 
 -- POLYSEMY ANNOYING:
 -- More packing so the constraint goes through...
