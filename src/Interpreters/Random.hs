@@ -14,7 +14,7 @@ import GHC.Conc
 
 import Effects
 myShuffle :: StatefulGen g m => g -> [a] -> m [a]
-myShuffle gen xs = shuffle xs <$> replicateM (length xs - 1) (uniformRM (0, length xs - 1) gen)
+myShuffle gen xs = shuffle xs <$> traverse (\i -> uniformRM (0, length xs - i) gen) [1..length xs-1]
 
 interpRandomShuffle :: Members '[RandomGenEff IO, Embed IO] r => Sem (RandomShuffle : r) a -> Sem r a
 interpRandomShuffle = interpret $ \case
