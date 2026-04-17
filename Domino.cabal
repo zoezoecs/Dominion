@@ -91,6 +91,7 @@ library
                    Interpreters.Random,
                    Interpreters.Log,
                    Interpreters.Stacks,
+                   Interpreters.DoRedact,
                    Interpreters.GameLogic,
                    Interpreters.Other,
                    Cards,

@@ -58,10 +58,11 @@ createCards = mapM createCards''
 initStacks :: [Player] -> [CardFace] -> Map Position [Card]
 initStacks pl cf = run . evalState @Int 0 . createCards $ boardInitState pl cf
 
-main :: [Player] -> [CardFace] -> IO ([(Player, LazyByteString)], ())
+main :: [Player] -> [CardFace] -> IO ()
 main pl cf = runM .
              serialiseToTerminal .
-             interpPlayerIO .
+             -- interpPlayerIO .
+             interpPlayerIONoReact .
              interpRandomWithSeed 4 . -- interpRandomGlobal
              interpRandomShuffle .
              runRandomUniqueId .
@@ -69,7 +70,7 @@ main pl cf = runM .
              interpStacks (stacksConfig pl).
              evalState @GameState (initGS pl) .
              interpStateRead .
-             runOutputList .
+             -- runOutputList .
              runCorrelation . 
              logPlayerToPlayerIO . 
              -- logPlayerToString @PotentiallyObscured .
@@ -82,12 +83,14 @@ main pl cf = runM .
              $
              playGame
 
+mainTest :: IO ()
+mainTest = main (MkPlayer <$> [1..3]) [Chapel, Harbinger]
+
 -- TODO: 
 -- Add all cards
 -- Implement "Get Valid Moves" "for every PlayerIO prompt"
 -- Implement playerIO no actions immediate return
 -- Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions? Relevant for player logging and especially reactions.
--- See if I can fix the logging system ease of use
 -- See if I can fix the effect hierarchy
 
 -- consider card semantics locations

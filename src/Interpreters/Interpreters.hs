@@ -16,6 +16,7 @@ module Interpreters.Interpreters (
   interpGameLoop,
   interpGameRules,
   interpPlayerIO,
+  interpPlayerIONoReact,
   interpStateRead,
   runRandomUniqueId,
   serialiseToTerminal,
@@ -24,5 +25,5 @@ module Interpreters.Interpreters (
 import Interpreters.Log (logEffects, logTurn, logPlayerToString, logToPlayerLog, runCorrelation, logPlayerToPlayerIO)
 import Interpreters.Stacks (interpStacks)
 import Interpreters.Random (interpRandomWithSeed, interpRandomGlobal, interpRandomShuffle, runRandomUniqueId)
-import Interpreters.Other (interpCardEffects, interpPlayerIO, interpStateRead, injectReaction, serialiseToTerminal)
+import Interpreters.Other (interpCardEffects, interpPlayerIO, interpStateRead, injectReaction, serialiseToTerminal, interpPlayerIONoReact)
 import Interpreters.GameLogic (interpGameLoop, interpGameRules, interpDoReaction)

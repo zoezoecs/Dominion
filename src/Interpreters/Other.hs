@@ -7,6 +7,8 @@ import Control.Monad
 import Control.Monad.Loops
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BS
+import qualified Data.ByteString.Lazy.Char8 as LC
+import qualified Data.ByteString.Char8 as C
 import Data.Monoid
 import Data.Function
 import Data.Constraint.Extras
@@ -16,6 +18,7 @@ import Base
 import Types
 import Effects
 import Cards
+import Interpreters.DoRedact
 
 
 interpCardEffects :: Members '[Stacks, State GameState, PlayerIO, BoardStateRead] r => (forall x. Sem (CardEffects : r) x -> Sem (CardEffects : r) x) -> Sem (CardEffects : r) a -> Sem r a
@@ -54,10 +57,14 @@ interpCardEffects inject = interpCardEffects' . inject
 -- available if they wish to play a valid action. So we need to do two phases, one for before reactions and one for after reactions
 -- after the event has occurred
 
+redactReactEvent :: Member Obscure r => ReactionEvent Card -> Player -> Sem r (ReactionEvent PotentiallyObscured)
+redactReactEvent ev pl = evAnsReaction <$> redactEvent (reactionEvAns ev) pl
+
 -- Prompt the player to react, Maybe signals choosing to not buy
-playOneReaction' :: (Member DoReaction r, Member PlayerIO r) => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r (Maybe ()) -> Sem r (Maybe ())
+playOneReaction' :: (Member DoReaction r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r (Maybe ()) -> Sem r (Maybe ())
 playOneReaction' player ceff ma if_invalid = do
-  mreact <- getPlayerReaction player (cardEffectrMap ceff) ma
+  redacted <- redactReactEvent (ReactionEvent ceff ma) player
+  mreact <- getPlayerReaction player redacted
   case mreact of
     Nothing -> return Nothing
     Just card -> do
@@ -66,20 +73,20 @@ playOneReaction' player ceff ma if_invalid = do
       Left _   -> if_invalid
       Right outcome -> return $ Just outcome
 
-playOneReaction :: (Member DoReaction r, Member PlayerIO r) => Player -> CardEffects (Sem rinnitial) a -> Maybe a -> Sem r (Maybe ())
+playOneReaction :: (Member DoReaction r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinnitial) a -> Maybe a -> Sem r (Maybe ())
 playOneReaction pl ceff ma = fix $ playOneReaction' pl ceff ma
 
-playerReact :: (Member DoReaction r, Member PlayerIO r) => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r [()]
+playerReact :: (Member DoReaction r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r [()]
 playerReact pl ceff ma = unfoldM (playOneReaction pl ceff ma)
 
-playerReacts :: Members '[DoReaction, CardEffects, PlayerIO] r => Player -> CardEffects (Sem rinitial) a -> Sem r a
+playerReacts :: Members '[DoReaction, CardEffects, PlayerIO, Obscure] r => Player -> CardEffects (Sem rinitial) a -> Sem r a
 playerReacts player cardEff = do
   _ <- playerReact player cardEff Nothing -- "before reactions"
   ret <- send (cardEffectrMap cardEff)
   _ <- playerReact player cardEff (Just ret) -- "after reactions"
   return ret
 
-injectReaction :: Members '[BoardStateRead, PlayerIO, CardEffects, DoReaction] r => Sem r a -> Sem r a
+injectReaction :: Members '[BoardStateRead, PlayerIO, CardEffects, DoReaction, Obscure] r => Sem r a -> Sem r a
 injectReaction program = do
   players' <- getPlayers -- wrong semantics
   let players = Map.keys players' -- probably wrong
@@ -112,7 +119,13 @@ interpStateRead = interpret $ \case
 interpPlayerIO :: Member DataSerialised r => Sem (PlayerIO : r) a -> Sem r a
 interpPlayerIO = interpret (\eff -> dataOut (encode eff) >> untilJust (has @FromJSON eff decode <$> dataIn))
 
+interpPlayerIONoReact :: Member DataSerialised r => Sem (PlayerIO : r) a -> Sem r a
+interpPlayerIONoReact = interpret $ \case 
+  eff@(SendInfo{}) -> dataOut (encode eff)
+  eff@(GetPlayerReaction{}) -> return Nothing
+  eff -> (dataOut (encode eff) >> untilJust (has @FromJSON eff decode <$> dataIn))
+
 serialiseToTerminal :: Member (Embed IO) r => InterpreterFor DataSerialised r
 serialiseToTerminal = interpret $ \case
-  DataIn -> embed BS.getContents
-  DataOut bstr -> embed $ BS.putStr bstr
+  DataIn -> embed $ C.fromStrict <$> C.getLine
+  DataOut bstr -> embed $ LC.putStrLn bstr

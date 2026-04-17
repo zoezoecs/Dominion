@@ -18,20 +18,40 @@ import Types
 import Effects.CardEffects
 import Internal.TH
 
+data EventAnswer f card = forall m a. EventAnswer (CardEffects' card m a) (f a)
+
+traverse'' :: (Applicative f, Traversable f1) => (c1 -> f c2) -> EventAnswer f1 c1 -> f (EventAnswer f1 c2)
+traverse'' f (EventAnswer (ModifyActions n) x) = pure $ EventAnswer (ModifyActions n) x
+traverse'' f (EventAnswer (ModifyBuys n) x) = pure $ EventAnswer (ModifyBuys n) x
+traverse'' f (EventAnswer (ModifyCurrency n) x) = pure $ EventAnswer (ModifyCurrency n) x
+traverse'' f (EventAnswer (ActivateCard pl c) x) = fmap (\a -> EventAnswer (ActivateCard pl a) x) (f c)
+traverse'' f (EventAnswer (DrawOnce pl) x) = fmap (EventAnswer (DrawOnce pl)) (traverse (traverse f) x)
+traverse'' f (EventAnswer (BlockOne pl c) x) = fmap (\a -> EventAnswer (BlockOne pl a) x) (f c)
+traverse'' f (EventAnswer (Discard pl c) x) = fmap (\a -> EventAnswer (Discard pl a) x) (f c)
+traverse'' f (EventAnswer (TrashCard pl c) x) = fmap (\a -> EventAnswer (TrashCard pl a) x) (f c)
+traverse'' f (EventAnswer (Reveal pl c) x) = fmap (\a -> EventAnswer (Reveal pl a) x) (f c)
+traverse'' f (EventAnswer (TopDeck pl c) x) = fmap (\a -> EventAnswer (TopDeck pl a) x) (f c)
+traverse'' f (EventAnswer (GainCardTo pl cf pos) x) = fmap (EventAnswer (GainCardTo pl cf pos)) (traverse (traverse f) x)
+
+instance (Traversable f1) => Functor (EventAnswer f1) where
+    fmap f = runIdentity . traverse (Identity . f)
+
+instance (Traversable f1) => Foldable (EventAnswer f1) where
+    foldMap f = getConst . traverse (Const . f)
+
+instance (Traversable f1) => Traversable (EventAnswer f1) where
+    traverse = traverse''
+
 data LoggedEvent card = forall m a. LogEvent (CardEffects' card m a) a
 
-traverse' :: (Applicative f) => (c1 -> f c2) -> LoggedEvent c1 -> f (LoggedEvent c2)
-traverse' f (LogEvent (ModifyActions n) x) = pure $ LogEvent (ModifyActions n) x
-traverse' f (LogEvent (ModifyBuys n) x) = pure $ LogEvent (ModifyBuys n) x
-traverse' f (LogEvent (ModifyCurrency n) x) = pure $ LogEvent (ModifyCurrency n) x
-traverse' f (LogEvent (ActivateCard pl c) ()) = fmap (\a -> LogEvent (ActivateCard pl a) ()) (f c)
-traverse' f (LogEvent (DrawOnce pl) x) = fmap (LogEvent (DrawOnce pl)) (traverse f x)
-traverse' f (LogEvent (BlockOne pl c) ()) = fmap (\a -> LogEvent (BlockOne pl a) ()) (f c)
-traverse' f (LogEvent (Discard pl c) ()) = fmap (\a -> LogEvent (Discard pl a) ()) (f c)
-traverse' f (LogEvent (TrashCard pl c) ()) = fmap (\a -> LogEvent (TrashCard pl a) ()) (f c)
-traverse' f (LogEvent (Reveal pl c) ()) = fmap (\a -> LogEvent (Reveal pl a) ()) (f c)
-traverse' f (LogEvent (TopDeck pl c) ()) = fmap (\a -> LogEvent (TopDeck pl a) ()) (f c)
-traverse' f (LogEvent (GainCardTo pl cf pos) x) = fmap (LogEvent (GainCardTo pl cf pos)) (traverse f x)
+logEvAnswer :: EventAnswer Identity card -> LoggedEvent card
+logEvAnswer (EventAnswer eff (Identity x)) = LogEvent eff x
+
+evAnswerLog :: LoggedEvent card -> EventAnswer Identity card
+evAnswerLog (LogEvent eff x) = EventAnswer eff (Identity x)
+
+traverse' :: Applicative f => (c1 -> f c2) -> LoggedEvent c1 -> f (LoggedEvent c2)
+traverse' f x = logEvAnswer <$> traverse'' f (evAnswerLog x)
 
 instance Functor LoggedEvent where
     fmap f = runIdentity . traverse (Identity . f)
