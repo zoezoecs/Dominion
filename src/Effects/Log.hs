@@ -42,13 +42,17 @@ instance (Traversable f1) => Foldable (EventAnswer f1) where
 instance (Traversable f1) => Traversable (EventAnswer f1) where
     traverse = traverse''
 
-data LoggedEvent card = forall m a. LogEvent (CardEffects' card m a) a
+--data LoggedEvent card = forall m a. LoggedEvent (CardEffects' card m a) a
+newtype LoggedEvent card = LoggedEvent {getLoggedEvent :: EventAnswer Identity card}
+
+loggedEvent :: forall {k} {card} {m :: k} {a}. CardEffects' card m a -> a -> LoggedEvent card
+loggedEvent ceff a = LoggedEvent (EventAnswer ceff (Identity a))
 
 logEvAnswer :: EventAnswer Identity card -> LoggedEvent card
-logEvAnswer (EventAnswer eff (Identity x)) = LogEvent eff x
+logEvAnswer (EventAnswer eff (Identity x)) = loggedEvent eff x
 
 evAnswerLog :: LoggedEvent card -> EventAnswer Identity card
-evAnswerLog (LogEvent eff x) = EventAnswer eff (Identity x)
+evAnswerLog (LoggedEvent (EventAnswer eff x)) = EventAnswer eff x
 
 traverse' :: Applicative f => (c1 -> f c2) -> LoggedEvent c1 -> f (LoggedEvent c2)
 traverse' f x = logEvAnswer <$> traverse'' f (evAnswerLog x)
@@ -63,7 +67,7 @@ instance Traversable LoggedEvent where
     traverse = traverse'
 
 instance ToJSON card => ToJSON (LoggedEvent card) where
-  toJSON (LogEvent eff result) =
+  toJSON (LoggedEvent (EventAnswer eff result)) =
     has @ToJSON eff $ object
       [ "effect" .= toJSON eff
       , "result" .= toJSON result
@@ -74,18 +78,17 @@ instance FromJSON card => FromJSON (LoggedEvent card) where
     Some eff <- o .: "effect"
     has @FromJSON eff $ do
       result <- parseJSON =<< o .: "result"
-      pure (LogEvent eff result)
+      pure (loggedEvent eff result)
 
 instance Eq card => Eq (LoggedEvent card) where
-  LogEvent eff1 result1 == LogEvent eff2 result2 = 
+  LoggedEvent (EventAnswer eff1 result1) == LoggedEvent (EventAnswer eff2 result2) = 
     case geq eff1 (cardEffectrMap eff2) of
       Nothing   -> False
       Just Refl -> has @Eq eff1 $ result1 == result2
 
 instance Show card => Show (LoggedEvent card) where
-  show (LogEvent eff result) =
-    has @Show eff $ "LogEvent (" <> show eff <> ") (" <> show result <> ")"
-
+  show (LoggedEvent (EventAnswer eff result)) =
+    has @Show eff $ "LoggedEvent (" <> show eff <> ") (" <> show result <> ")"
 
 
 data Log card m a where
@@ -96,6 +99,7 @@ data Log card m a where
   LogEffect :: LoggedEvent card -> Log card m ()
 makeSemMonomorphised ''Card ''Log
 deriveJSONGADT ''Log
+deriving instance Show card => Show (Log card m a)
 
 logCardMap :: (c1 -> c2) -> Log c1 m a -> Log c2 m a
 logCardMap f (LogPlayerRoundStart pl) = LogPlayerRoundStart pl
@@ -107,8 +111,7 @@ logCardMap f (LogEffect eff) = LogEffect (fmap f eff)
 data LogToPlayer card m a where
   LogToPlayer :: Log card m () -> Player -> LogToPlayer card m ()
 makeSem ''LogToPlayer
-
--- deriving instance (Show a, Show card) => Show (Log card m a)
+deriving instance Show card => Show (LogToPlayer card m a)
 
 data Obscure m a where
   GetTempId :: Card -> Obscure m TempId

@@ -63,7 +63,7 @@ redactReactEvent ev pl = evAnsReaction <$> redactEvent (reactionEvAns ev) pl
 -- Prompt the player to react, Maybe signals choosing to not buy
 playOneReaction' :: (Member DoReaction r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r (Maybe ()) -> Sem r (Maybe ())
 playOneReaction' player ceff ma if_invalid = do
-  redacted <- redactReactEvent (ReactionEvent ceff ma) player
+  redacted <- redactReactEvent (ReactionEvent (EventAnswer ceff ma)) player
   mreact <- getPlayerReaction player redacted
   case mreact of
     Nothing -> return Nothing

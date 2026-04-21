@@ -7,6 +7,7 @@ import Control.Monad
 import Data.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.List
 
 import Base
 import Types
@@ -106,3 +107,36 @@ interpGameRules = interpret $ \case
           | cond_true                = Left ConditionNotMet
           | otherwise                = Right ()
     return result
+
+gah :: Applicative m => (c -> m a) -> (c -> m b) -> (c -> m (a,b))
+gah cma cmb c = liftA2 (,) (cma c) (cmb c)
+
+deidentify :: CardEffects' PotentiallyObscured m a -> CardEffects' Card m a
+deidentify = undefined
+-- FUCK I HATE THIS
+
+blah :: Members '[BoardStateRead, GameRules] r => InterpreterFor ValidResponses r
+blah = interpret $ \case
+  GetResponse (GetAction pl) -> do
+    handCards <- getHand pl
+    cardSuccess <- traverse (gah return (canAct pl)) handCards
+    return $ Nothing:[Just c | (c,Right _) <- cardSuccess]
+  GetResponse (GetPlayTreasure pl) -> do
+    handCards <- getHand pl
+    cardSuccess <- traverse (gah return (canTreasure pl)) handCards
+    return $ Nothing:[Just c | (c,Right _) <- cardSuccess]
+  GetResponse (GetBuy pl) -> do
+    handCards <- _
+    cardSuccess <- traverse (gah return (canBuy pl)) handCards
+    return $ Nothing:[Just c | (c,Right _) <- cardSuccess]
+  GetResponse (GetTrashAny pl cards) -> return $ subsequences cards
+  GetResponse (GetTrashExactlyN pl n cards) -> return $ filter (\x -> length x == n) (subsequences cards)
+  GetResponse (SendInfo _ _) -> return [()]
+  GetResponse (GetPlayerReaction pl (ReactionEvent ceff ma)) -> do
+    handCards <- getHand pl
+    cardSuccess <- traverse (gah return (\c -> canReact pl c (cardEffectrMap ceff) ma)) handCards
+    return $ Nothing:[Just c | (c,Right _) <- cardSuccess]
+
+-- TODO: Here we have a potential information leak
+-- If a card were to say "if another player draws a Province", they would be able to determine information from that
+-- But it seems bad to look up the obscured card.

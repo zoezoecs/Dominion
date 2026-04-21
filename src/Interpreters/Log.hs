@@ -18,7 +18,7 @@ import Effects
 import Interpreters.DoRedact
 
 logEffects :: Members '[CardEffects, Log Card] r => Sem r a -> Sem r a
-logEffects = intercept (\cardEff -> send (cardEffectrMap cardEff) >>=/ (logEffect . LogEvent cardEff))
+logEffects = intercept (\cardEff -> send (cardEffectrMap cardEff) >>=/ (logEffect . loggedEvent cardEff))
 
 logTurn :: Members '[GameLoop, Log Card] r => Sem r a -> Sem r a
 logTurn = intercept $ \case
