@@ -43,13 +43,8 @@ unknownLookupReaction = unknownLookupReaction' . getFaceInfo
 
 type FaceInfo = FaceInfo' CardTypes CardReactionSemantics CardSemantics
 
-lookupCardReaction :: Members '[CardEffects] r => Player -> Card -> Maybe (Reaction (Sem r) ())
-lookupCardReaction pl c =  do
-  mreac <- getReaction . getFaceInfo . getFace $ c
-  return $ getReactionSemantics mreac pl c
-
 knownLookupReaction :: Members '[CardEffects] r => Player -> Card -> HasReaction -> Reaction (Sem r) ()
-knownLookupReaction pl c _ = fromJust $ lookupCardReaction pl c
+knownLookupReaction pl c prf = getReactionSemantics (knownLookupReaction' prf (getFaceInfo . getFace $ c)) pl c
 
 knownLookupCond :: Player -> Card -> HasReaction -> Reaction (Const ()) ()
 knownLookupCond pl c hr = reactionMap (const (Const ())) blah
@@ -63,7 +58,9 @@ knownLookupCardReactionM pl card prf = case knownLookupReaction pl card prf  of
   AfterReaction _ m -> m
 
 getEffect :: CardFace -> CardSemantics'
-getEffect = undefined
+getEffect cf = case getFaceEffect' . getFaceInfo $ cf of
+  Nothing -> \_ _ -> return ()
+  Just x -> getSemantics x
 
 getFaceInfo :: CardFace -> FaceInfo
 getFaceInfo Bandit = FaceInfo 0 Nothing 5 [CardAction, CardAttack] Nothing (Just $ CardSemantics bandit)
