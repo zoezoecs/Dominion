@@ -43,9 +43,9 @@ type CardEffects = CardEffects' Card
 data EventAnswer f card = forall m a. EventAnswer (CardEffects' card m a) (f a)
 
 traverse'' :: (Applicative f, Traversable f1) => (c1 -> f c2) -> EventAnswer f1 c1 -> f (EventAnswer f1 c2)
-traverse'' f (EventAnswer (ModifyActions n) x) = pure $ EventAnswer (ModifyActions n) x
-traverse'' f (EventAnswer (ModifyBuys n) x) = pure $ EventAnswer (ModifyBuys n) x
-traverse'' f (EventAnswer (ModifyCurrency n) x) = pure $ EventAnswer (ModifyCurrency n) x
+traverse'' _ (EventAnswer (ModifyActions n) x) = pure $ EventAnswer (ModifyActions n) x
+traverse'' _ (EventAnswer (ModifyBuys n) x) = pure $ EventAnswer (ModifyBuys n) x
+traverse'' _ (EventAnswer (ModifyCurrency n) x) = pure $ EventAnswer (ModifyCurrency n) x
 traverse'' f (EventAnswer (ActivateCard pl c) x) = fmap (\a -> EventAnswer (ActivateCard pl a) x) (f c)
 traverse'' f (EventAnswer (DrawOnce pl) x) = fmap (EventAnswer (DrawOnce pl)) (traverse (traverse f) x)
 traverse'' f (EventAnswer (BlockOne pl c) x) = fmap (\a -> EventAnswer (BlockOne pl a) x) (f c)

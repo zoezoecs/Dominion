@@ -6,7 +6,7 @@ import Polysemy.State
 import Control.Monad
 import Control.Monad.Loops
 import Data.Aeson
-import qualified Data.ByteString.Lazy as BS
+--import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.ByteString.Char8 as C
 import Data.Monoid
@@ -102,9 +102,7 @@ injectReaction program = do
 justGetStack :: Member Stacks r => Position -> Sem r [Card]
 justGetStack p = do
     mstack <- getStack p
-    case mstack of
-        Nothing -> undefined
-        Just cards -> return cards
+    maybe undefined return mstack
 
 interpStateRead :: Members '[Stacks, State GameState] r => Sem (BoardStateRead : r) a -> Sem r a
 interpStateRead = interpret $ \case
@@ -112,7 +110,7 @@ interpStateRead = interpret $ \case
   GetVP pl -> sum <$> (fmap getCardVP <$> (join <$> mapM (justGetStack . PlayerCard pl) allPositions))
   GetHand pl -> justGetStack (PlayerCard pl PlayerHand)
   GetDeck pl -> justGetStack (PlayerCard pl PlayerDeck)
-  GetTopCard pl -> flip (!?) 1 <$> justGetStack (PlayerCard pl PlayerDeck)
+  GetTopCard pl -> flip (!?) (1::Int) <$> justGetStack (PlayerCard pl PlayerDeck)
   GetTopNCard pl n -> flip (!?) n <$> justGetStack (PlayerCard pl PlayerDeck)
   GetDiscardPile pl -> justGetStack (PlayerCard pl PlayerDiscardPile)
   IsGameOver -> do
@@ -127,7 +125,7 @@ interpPlayerIO = interpret (\eff -> dataOut (encode eff) >> untilJust (has @From
 interpPlayerIONoReact :: Member DataSerialised r => Sem (PlayerIO : r) a -> Sem r a
 interpPlayerIONoReact = interpret $ \case
   eff@(SendInfo{}) -> dataOut (encode eff)
-  eff@(GetPlayerReaction{}) -> return Nothing
+  (GetPlayerReaction{}) -> return Nothing
   eff -> (dataOut (encode eff) >> untilJust (has @FromJSON eff decode <$> dataIn))
 
 serialiseToTerminal :: Member (Embed IO) r => InterpreterFor DataSerialised r

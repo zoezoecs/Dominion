@@ -79,8 +79,8 @@ deriveJSONGADT ''Log
 deriving instance Show card => Show (Log card m a)
 
 logCardMap :: (c1 -> c2) -> Log c1 m a -> Log c2 m a
-logCardMap f (LogPlayerRoundStart pl) = LogPlayerRoundStart pl
-logCardMap f (LogBuy pl cf) = LogBuy pl cf
+logCardMap _ (LogPlayerRoundStart pl) = LogPlayerRoundStart pl
+logCardMap _ (LogBuy pl cf) = LogBuy pl cf
 logCardMap f (LogAct pl c) = LogAct pl (f c)
 logCardMap f (LogTreasure pl c) = LogTreasure pl (f c)
 logCardMap f (LogEffect eff) = LogEffect (fmap f eff)

@@ -1,12 +1,12 @@
-module MyLib (main) where
+module MyLib (main, mainTest) where
 
 import Polysemy
-import Polysemy.Output
+--import Polysemy.Output
 import Polysemy.State
 import Control.Monad
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.ByteString.Lazy
+--import Data.ByteString.Lazy
  
 import Base
 import Types

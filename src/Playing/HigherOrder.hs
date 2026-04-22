@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -w #-}
 module Playing.HigherOrder where
 
 import Polysemy

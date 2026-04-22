@@ -55,8 +55,11 @@ data GameState = MkGameState {
   -- reactions :: [Reaction m]
 } deriving (Eq, Ord, Show)
 
+modActions :: Int -> GameState -> GameState
 modActions n gs = gs{current_actions=n+current_actions gs}
+modBuys :: Int -> GameState -> GameState
 modBuys n gs = gs{current_buys=n+current_buys gs}
+modCurrency :: Int -> GameState -> GameState
 modCurrency n gs = gs{current_currency=n+current_currency gs}
 
 setBlocks :: Player -> Bool -> GameState -> GameState

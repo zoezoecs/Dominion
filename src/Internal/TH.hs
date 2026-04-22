@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP, TemplateHaskell #-}
+{-# OPTIONS_GHC -w #-}
 
 {-# OPTIONS_HADDOCK not-home #-}
 
@@ -159,7 +160,7 @@ getHead (AppT x _) = getHead x
 getHead x = x
 
 makeArg :: Map.Map Type Name -> (Name, Type) -> Exp
-makeArg mapper (n, t) = case traceShow (n,t, mapper, getHead t) $ Map.lookup (getHead t) mapper of
+makeArg mapper (n, t) = case Map.lookup (getHead t) mapper of
   Nothing -> VarE n
   Just fn -> AppE (VarE fn) (VarE n)
 
@@ -170,7 +171,7 @@ makeAppliedConstructor mapper cli =
 
 genMyDec :: Map.Map Type Name -> Name -> [ConLiftInfo] -> Q [Dec]
 genMyDec coerce_map fn_name clis = do
-    let fun_args_namess = fmap (\x -> (x, makeAppliedConstructor coerce_map x)) $ traceShowId clis
+    let fun_args_namess = fmap (\x -> (x, makeAppliedConstructor coerce_map x)) clis
     pure
       [
         FunD fn_name

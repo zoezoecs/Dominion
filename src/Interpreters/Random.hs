@@ -4,8 +4,6 @@ module Interpreters.Random where
 import Polysemy
 import Polysemy.Input
 
-import Control.Monad
-
 import System.Random.Shuffle
 import System.Random
 import System.Random.Stateful

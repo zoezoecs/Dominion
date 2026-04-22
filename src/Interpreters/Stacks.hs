@@ -43,9 +43,9 @@ interpStacks cfg = interpret $ \case
         let stack2 = unsafeLookup l2 cardMap
         put $ Map.insert l1 [] . Map.insert l2 (stack1++stack2) $ cardMap
       DrawTo l1 l2 -> do
-        cardMap <- get @(Map Position [Card])
-        let stack1 = unsafeLookup l1 cardMap
-        when (null stack1) $ interpStacks cfg $ refill cfg l1
+        cardMap' <- get @(Map Position [Card])
+        let stack1' = unsafeLookup l1 cardMap'
+        when (null stack1') $ interpStacks cfg $ refill cfg l1
         cardMap <- get @(Map Position [Card])
         let stack1 = unsafeLookup l1 cardMap
         let stack2 = unsafeLookup l2 cardMap

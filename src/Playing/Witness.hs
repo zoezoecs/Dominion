@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell, DeriveFunctor #-}
+{-# OPTIONS_GHC -w #-}
 module Playing.Witness where
 
 import Internal.TH
@@ -140,6 +141,8 @@ logCardMap' witness f (LogEffect (LogEvent eff) ans) = LogEffect (LogEvent (card
 type family EffectResult (card :: *) where
   EffectResult card = Maybe card
 
+wah :: EffectResult a
+wah = undefined
 -- POLYSEMY ANNOYING:
 -- We have to monomorphise here for a = CardEffects m a to avoid Polysemy thinking Loggable (CardEffects m a) is higher order.
 -- We also need this thing to carry around the proof that the output of CardEffects m a is always showable, because we know the constructors.

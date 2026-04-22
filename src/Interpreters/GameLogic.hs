@@ -5,11 +5,8 @@ import Polysemy.State
 
 import Control.Monad
 import Data.Maybe
-import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.List
 
-import Base
 import Types
 import Effects
 import Cards
@@ -68,7 +65,7 @@ interpDoReaction = interpret $ \case
 
 interpGameRules :: Members '[State GameState, Stacks, BoardStateRead] r => Sem (GameRules : r) a -> Sem r a
 interpGameRules = interpret $ \case
-  CanBuy pl face -> do
+  CanBuy _ face -> do
     gs        <- get @GameState
     stack     <- getStack (Supply face)
     let result

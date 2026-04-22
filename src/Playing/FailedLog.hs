@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -w #-}
+
 module Playing.FailedLog where
 
 -- data CardEffects'' card where

@@ -15,7 +15,6 @@ import Types
 import TypesSecret
 import Effects.CardEffects
 import Effects.PlayerIO
-import Effects.Log
 
 
 
