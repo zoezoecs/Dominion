@@ -6,7 +6,6 @@ import Polysemy
 import Polysemy.Input
 import Data.ByteString.Lazy
 import Data.Maybe
-import Data.Aeson.GADT.TH
 import Data.Map (Map)
 import qualified Data.Map as Map
 import System.Random.Stateful
@@ -14,8 +13,8 @@ import System.Random.Stateful
 import Base
 import Types
 import Effects.CardEffects
-import Effects.Log
 import Effects.PlayerIO
+import Effects.Log
 
 
 
@@ -76,19 +75,22 @@ makeSem ''GameLoop
 deriving instance Show (GameLoop m a)
 
 data DoReaction m a where
-  DoReaction :: Player -> Card -> (forall r. CardEffects r a) -> Maybe a -> DoReaction m (Either InvalidReaction ())
+  DoReaction :: Player -> Card -> ReactionEvent Card -> DoReaction m (Either InvalidReaction ())
 makeSem ''DoReaction
+
+data Reaction m a where
+    BeforeReaction :: (forall m1 x. CardEffects (Sem m1) x -> Bool) -> m () -> Reaction m a
+    AfterReaction :: (forall m1 x. CardEffects (Sem m1) x -> x -> Bool) -> m () -> Reaction m a
+reactionMap :: (m1 () -> m2 ()) -> Reaction m1 a -> Reaction m2 a
+reactionMap f (BeforeReaction cond m) = BeforeReaction cond (f m)
+reactionMap f (AfterReaction cond m) = AfterReaction cond (f m)
 
 data GameRules m a where
     CanBuy :: Player -> CardFace -> GameRules m (Either InvalidBuy ())
     CanAct :: Player -> Card -> GameRules m (Either InvalidMove ())
     CanTreasure :: Player -> Card -> GameRules m (Either TreasureError Int)
-    CanReact :: Player -> Card -> (forall r. CardEffects r a) -> Maybe a -> GameRules m (Either InvalidReaction ())
+    CanReact :: Player -> Card -> ReactionEvent Card -> GameRules m (Either InvalidReaction HasReaction)
 makeSem ''GameRules
-
-data Reaction m a where
-    BeforeReaction :: (forall m1 x. CardEffects (Sem m1) x -> Bool) -> m () -> Reaction m a
-    AfterReaction :: (forall m1 x. CardEffects (Sem m1) x -> x -> Bool) -> m () -> Reaction m a
 
 -- Design choice: Messages to clients entirely through separate messages, and logs are reinterpreted from effects
 -- Partial information managed by different messages with less information, no state tracking, no ability to refer to
@@ -131,4 +133,7 @@ type RandomGenEff m = Input (HoldRandom m)
 -- 5. Emit an event for an attack into a big events datatype
 
 
-type CardSemantics = forall r. Members [BoardStateRead, CardEffects, PlayerIO] r => Player -> Card -> Sem r ()
+type CardSemantics' = forall r. Members [BoardStateRead, CardEffects, PlayerIO] r => Player -> Card -> Sem r ()
+type CardReactionSemantics' = forall r. (Members '[CardEffects] r) => Player -> Card -> Reaction (Sem r) ()
+newtype CardSemantics = CardSemantics {getSemantics :: CardSemantics'}
+newtype CardReactionSemantics = CardReactionSemantics {getReactionSemantics :: CardReactionSemantics'}

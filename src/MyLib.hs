@@ -64,11 +64,13 @@ traceState = intercept @(State GameState) $ \case
   Get -> get
   Put x -> put $ traceShowId x
 
+injecting :: Members '[GameRules, Log Card, BoardStateRead, PlayerIO, Obscure] r => Sem (CardEffects:r) a -> Sem (CardEffects:r) a
+injecting = interpDoReaction . logEffects . injectReaction
+
 main :: [Player] -> [CardFace] -> IO ()
 main pl cf = runM .
              serialiseToTerminal .
              -- interpPlayerIO .
-             interpPlayerIONoReact .
              interpRandomWithSeed 4 . -- interpRandomGlobal
              interpRandomShuffle .
              runRandomUniqueId .
@@ -79,19 +81,20 @@ main pl cf = runM .
              interpStateRead .
              -- runOutputList .
              runCorrelation . 
+             interpGameRules .
+             runValidResponses .
+             interpPlayerIOChoice .
              logPlayerToPlayerIO . 
              -- logPlayerToString @PotentiallyObscured .
              logToPlayerLog .
-             interpGameRules .
-             interpDoReaction .
-             interpCardEffects (logEffects . injectReaction).
+             interpCardEffects injecting. -- TODO: Check that the reaction to reaction semantics are correct
              interpGameLoop .
              logTurn 
              $
              playGame
 
 mainTest :: IO ()
-mainTest = main (MkPlayer <$> [1..3]) [Chapel, Harbinger]
+mainTest = main (MkPlayer <$> [1..3]) [Bandit, Moat]
 
 -- TODO: 
 -- Add all cards

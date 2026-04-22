@@ -2,9 +2,11 @@ module Cards where
 
 import Polysemy
 import Control.Monad
-import Data.Maybe ( catMaybes )
+import Data.Maybe
+import Data.Functor.Const
 import Data.List ( (\\) )
 import qualified Data.Map as Map
+import Debug.Trace
 
 import Effects
 import Base
@@ -26,27 +28,67 @@ getFaceVP _ = 0
 -- 0 represents being a treasure that provides 0 value
 getCurrency :: Card -> Maybe Int
 getCurrency = getFaceCurrency . getFace
+
 getFaceCurrency :: CardFace -> Maybe Int
-getFaceCurrency Gold = Just 3
-getFaceCurrency Silver = Just 2
-getFaceCurrency Copper = Just 1
-getFaceCurrency _ = Nothing
+getFaceCurrency = getFaceCurrency' . getFaceInfo
 
 getCost :: Card -> Int
 getCost = getFaceCost . getFace
 
 getFaceCost :: CardFace -> Int
-getFaceCost = undefined
+getFaceCost = getFaceCost' . getFaceInfo
 
 getTypes :: CardFace -> [CardTypes]
-getTypes = undefined
-getCardReaction :: CardFace -> m ()
-getCardReaction = undefined
-getEffect :: CardFace -> CardSemantics
+getTypes = getFaceTypes . getFaceInfo
+
+unknownLookupReaction :: CardFace -> Maybe HasReaction
+unknownLookupReaction cf = HasReaction <$ (getReaction . getFaceInfo) cf
+
+lookupCardReaction :: Members '[CardEffects] r => Player -> Card -> Maybe (Reaction (Sem r) ())
+lookupCardReaction pl c =  do
+  mreac <- getReaction . getFaceInfo . getFace $ c
+  return $ getReactionSemantics mreac pl c
+
+knownLookupReaction :: Members '[CardEffects] r => Player -> Card -> HasReaction -> Reaction (Sem r) ()
+knownLookupReaction pl c _ = fromJust $ lookupCardReaction pl c
+
+knownLookupCond :: Player -> Card -> HasReaction -> Reaction (Const ()) ()
+knownLookupCond pl c hr = reactionMap (const (Const ())) blah
+  where
+    blah :: Reaction (Sem '[CardEffects]) ()
+    blah = knownLookupReaction pl c hr
+
+knownLookupCardReactionM :: Members '[CardEffects] r => Player -> Card -> HasReaction -> Sem r () -- TODO: fmap
+knownLookupCardReactionM pl card prf = case knownLookupReaction pl card prf  of
+  BeforeReaction _ m -> m
+  AfterReaction _ m -> m
+
+getEffect :: CardFace -> CardSemantics'
 getEffect = undefined
 
+data FaceInfo = FaceInfo {
+  getFaceVP' :: Int,
+  getFaceCurrency' :: Maybe Int,
+  getFaceCost' :: Int,
+  getFaceTypes :: [CardTypes],
+  getReaction :: Maybe CardReactionSemantics,
+  getEffect' :: Maybe CardSemantics
+}
+
+getFaceInfo :: CardFace -> FaceInfo
+getFaceInfo Bandit = FaceInfo 0 Nothing 5 [CardAction, CardAttack] Nothing (Just $ CardSemantics bandit)
+getFaceInfo Moat = FaceInfo 0 Nothing 2 [CardAction, CardReaction] (Just (CardReactionSemantics moatReact)) (Just $ CardSemantics moatPlay)
+getFaceInfo Copper = FaceInfo 0 (Just 1) 0 [CardTreasure] Nothing Nothing
+getFaceInfo Silver = FaceInfo 0 (Just 2) 3 [CardTreasure] Nothing Nothing
+getFaceInfo Gold = FaceInfo 0 (Just 3) 6 [CardTreasure] Nothing Nothing
+getFaceInfo Estate = FaceInfo 1 Nothing 2 [CardVictory] Nothing Nothing
+getFaceInfo Duchy = FaceInfo 3 Nothing 5 [CardVictory] Nothing Nothing
+getFaceInfo Province = FaceInfo 6 Nothing 8 [CardVictory] Nothing Nothing
+getFaceInfo Curse = FaceInfo (-1) Nothing 0 [] Nothing Nothing
+getFaceInfo card = traceShow card undefined
+
 --bandit :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r ()
-bandit :: CardSemantics
+bandit :: CardSemantics'
 bandit player _ = do
   _ <- gainCard player Gold
   players <- getPlayers
@@ -64,7 +106,7 @@ bandited player = do
   forM_ (cards \\ toTrash) (discard player)
 
 --witch :: (Member CardEffects r) => Player -> Sem r ()
-witch :: CardSemantics
+witch :: CardSemantics'
 witch player _ = do
   _ <- drawCard player 1
   _ <- modifyActions 1
@@ -72,7 +114,7 @@ witch player _ = do
   return ()
 
 -- moatPlay :: (Member CardEffects r) => Player -> Sem r ()
-moatPlay :: CardSemantics
+moatPlay :: CardSemantics'
 moatPlay player _ = void $ drawCard player 2
 
 isAttack :: CardFace -> Bool
@@ -82,8 +124,7 @@ otherPlayerAttack :: Player -> CardEffects r a -> Bool
 otherPlayerAttack player (ActivateCard pl card) = (player /= pl) && isAttack (getFace card)
 otherPlayerAttack _ _ = False
 
--- Uhhhh TODO is this correct? Reaction as an effect?
-moatReact :: (Members '[CardEffects, Reaction] r) => Player -> Card -> Reaction (Sem r) a
+moatReact :: (Members '[CardEffects] r) => Player -> Card -> Reaction (Sem r) ()
 moatReact player card = BeforeReaction (otherPlayerAttack player) moatBlock
   where
     moatBlock = do
@@ -91,7 +132,7 @@ moatReact player card = BeforeReaction (otherPlayerAttack player) moatBlock
       blockOne player card
 
 --councilRoom :: (Member CardEffects r) => Player -> Sem r ()
-councilRoom :: CardSemantics
+councilRoom :: CardSemantics'
 councilRoom player _ = do
   _ <- drawCard player 4
   _ <- modifyBuys 1

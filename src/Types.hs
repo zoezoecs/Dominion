@@ -22,13 +22,46 @@ data CardTypes = CardAttack | CardReaction | CardAction | CardTreasure | CardVic
 newtype Player = MkPlayer Int deriving (Ord, Eq, Show, Generic)
 
 -- Obvious design choice: Representing errors and card positions as data
-data InvalidMove = NoActions | CardPositionIncorrect deriving (Eq, Ord, Show, Generic)
+data InvalidMove = NoActions | CardPositionIncorrect | NotAnAction deriving (Eq, Ord, Show, Generic)
 data InvalidBuy = NoBuys | NoMoney | BadGain InvalidGain deriving (Eq, Ord, Show, Generic)
 data InvalidGain = NotInKingdom | EmptySupply | GainError deriving (Eq, Ord, Show, Generic)
 data TreasureError = TreasurePositionIncorrect | NotATresure deriving (Eq, Ord, Show, Generic)
-data InvalidReaction = NoCard | ConditionNotMet deriving (Eq, Ord, Show, Generic)
+data InvalidReaction = NoCard | ConditionNotMet | NoReaction deriving (Eq, Ord, Show, Generic)
 
 data PlayerPosition = PlayerDeck | PlayerDiscardPile | PlayerHand | PlayerInPlay | PlayerSetAside deriving (Eq, Ord, Show, Generic)
+
+data HasReaction = HasReaction -- TODO: How can I move this into its own module properly
+-- data Kingdom = Kingdom
+-- data Treasure = Treasure
+-- data CurseSupply = CurseSupplye
+-- data BasicSupply = TreasureSupply | VictorySupply | CurseSupply
+
+-- Design choice: Maybe I just leave Kingdom/Treasure/Blah status to predicates?
+-- If I break the card faces up into subsets its annoying to write "Gains a Copper"
+-- But if I do this its a little annoying to say "Gain a Treasure"
+-- c.f. Gain a treasure costing up to..
+data Position = PlayerCard Player PlayerPosition | Supply CardFace | Trash deriving (Eq, Ord, Show, Generic)
+
+allPositions :: [PlayerPosition]
+allPositions = [PlayerDeck, PlayerDiscardPile, PlayerHand, PlayerInPlay, PlayerSetAside]
+
+
+-- Obvious design choice: state is a big datatype
+data GameState = MkGameState {
+  all_players :: [Player],
+  blocks :: Map Player Bool,
+  current_actions :: Int,
+  current_buys :: Int,
+  current_currency :: Int
+  -- reactions :: [Reaction m]
+} deriving (Eq, Ord, Show)
+
+modActions n gs = gs{current_actions=n+current_actions gs}
+modBuys n gs = gs{current_buys=n+current_buys gs}
+modCurrency n gs = gs{current_currency=n+current_currency gs}
+
+setBlocks :: Player -> Bool -> GameState -> GameState
+setBlocks pl b gs = gs{blocks=Map.insert pl b (blocks gs)}
 
 
 
@@ -69,42 +102,3 @@ instance ToJSON PotentiallyObscured where
     toEncoding = genericToEncoding defaultOptions
 instance FromJSON PotentiallyObscured
 
-
-
-
-
-
-
-
-
-
--- data Kingdom = Kingdom
--- data Treasure = Treasure
--- data CurseSupply = CurseSupplye
--- data BasicSupply = TreasureSupply | VictorySupply | CurseSupply
-
--- Design choice: Maybe I just leave Kingdom/Treasure/Blah status to predicates?
--- If I break the card faces up into subsets its annoying to write "Gains a Copper"
--- But if I do this its a little annoying to say "Gain a Treasure"
--- c.f. Gain a treasure costing up to..
-data Position = PlayerCard Player PlayerPosition | Supply CardFace | Trash deriving (Eq, Ord, Show, Generic)
-
-allPositions :: [PlayerPosition]
-allPositions = [PlayerDeck, PlayerDiscardPile, PlayerHand, PlayerInPlay, PlayerSetAside]
-
--- Obvious design choice: state is a big datatype
-data GameState = MkGameState {
-  all_players :: [Player],
-  blocks :: Map Player Bool,
-  current_actions :: Int,
-  current_buys :: Int,
-  current_currency :: Int
-  -- reactions :: [Reaction m]
-} deriving (Eq, Ord, Show)
-
-modActions n gs = gs{current_actions=n+current_actions gs}
-modBuys n gs = gs{current_buys=n+current_buys gs}
-modCurrency n gs = gs{current_currency=n+current_currency gs}
-
-setBlocks :: Player -> Bool -> GameState -> GameState
-setBlocks pl b gs = gs{blocks=Map.insert pl b (blocks gs)}

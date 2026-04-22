@@ -14,6 +14,7 @@ import Data.Constraint.Extras.TH
 import Data.Type.Equality
 import Data.GADT.Compare
 import Data.Some.Newtype
+import qualified Data.Map as Map
 
 import Types
 import Effects.CardEffects
@@ -74,8 +75,13 @@ deriveJSONGADT ''PlayerIO
 deriveArgDict ''PlayerIO
 deriving instance Show (PlayerIO m a)
 
+genNoR' (Map.singleton ''Log 'logMapR) ''PlayerIO
+playerIOmapR :: PlayerIO m1 a -> PlayerIO m2 a
+playerIOmapR = chR_PlayerIO
+
 data ValidResponses m a where
-  GetResponse :: PlayerIO m a -> ValidResponses m [a]
+  GetValidResponses :: PlayerIO m a -> ValidResponses m [a]
+makeSem ''ValidResponses
 
 getPlayerReaction' :: Member PlayerIO r => Player -> (forall m. CardEffects' PotentiallyObscured m a) -> Maybe a -> Sem r (Maybe Card)
 getPlayerReaction' pl ceff ma = getPlayerReaction pl (reactionEvent ceff ma)

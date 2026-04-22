@@ -13,6 +13,8 @@ import Data.Aeson.GADT.TH
 import Data.Constraint.Extras
 import Data.Type.Equality
 import Data.GADT.Compare
+import Data.Functor.Identity
+import Data.Functor.Const
 
 import Types
 import Internal.TH
@@ -38,19 +40,34 @@ deriving instance (Show a, Show card) => Show (CardEffects' card m a)
 deriving instance (Eq card) => Eq (CardEffects' card m a)
 type CardEffects = CardEffects' Card
 
-cardEffectrMap :: CardEffects' card r1 a -> CardEffects' card r2 a
-cardEffectrMap (ModifyActions n) = ModifyActions n
-cardEffectrMap (ModifyBuys n) = ModifyBuys n
-cardEffectrMap (ModifyCurrency n) = ModifyCurrency n
+data EventAnswer f card = forall m a. EventAnswer (CardEffects' card m a) (f a)
 
-cardEffectrMap (ActivateCard pl c) = ActivateCard pl c
-cardEffectrMap (DrawOnce pl) = DrawOnce pl
-cardEffectrMap (BlockOne pl c) = BlockOne pl c
-cardEffectrMap (Discard pl c) = Discard pl c
-cardEffectrMap (TrashCard pl c) = TrashCard pl c
-cardEffectrMap (Reveal pl c) = Reveal pl c
-cardEffectrMap (TopDeck pl c) = TopDeck pl c
-cardEffectrMap (GainCardTo pl cf pp) = GainCardTo pl cf pp
+traverse'' :: (Applicative f, Traversable f1) => (c1 -> f c2) -> EventAnswer f1 c1 -> f (EventAnswer f1 c2)
+traverse'' f (EventAnswer (ModifyActions n) x) = pure $ EventAnswer (ModifyActions n) x
+traverse'' f (EventAnswer (ModifyBuys n) x) = pure $ EventAnswer (ModifyBuys n) x
+traverse'' f (EventAnswer (ModifyCurrency n) x) = pure $ EventAnswer (ModifyCurrency n) x
+traverse'' f (EventAnswer (ActivateCard pl c) x) = fmap (\a -> EventAnswer (ActivateCard pl a) x) (f c)
+traverse'' f (EventAnswer (DrawOnce pl) x) = fmap (EventAnswer (DrawOnce pl)) (traverse (traverse f) x)
+traverse'' f (EventAnswer (BlockOne pl c) x) = fmap (\a -> EventAnswer (BlockOne pl a) x) (f c)
+traverse'' f (EventAnswer (Discard pl c) x) = fmap (\a -> EventAnswer (Discard pl a) x) (f c)
+traverse'' f (EventAnswer (TrashCard pl c) x) = fmap (\a -> EventAnswer (TrashCard pl a) x) (f c)
+traverse'' f (EventAnswer (Reveal pl c) x) = fmap (\a -> EventAnswer (Reveal pl a) x) (f c)
+traverse'' f (EventAnswer (TopDeck pl c) x) = fmap (\a -> EventAnswer (TopDeck pl a) x) (f c)
+traverse'' f (EventAnswer (GainCardTo pl cf pos) x) = fmap (EventAnswer (GainCardTo pl cf pos)) (traverse (traverse f) x)
+
+instance (Traversable f1) => Functor (EventAnswer f1) where
+    fmap f = runIdentity . traverse (Identity . f)
+
+instance (Traversable f1) => Foldable (EventAnswer f1) where
+    foldMap f = getConst . traverse (Const . f)
+
+instance (Traversable f1) => Traversable (EventAnswer f1) where
+    traverse = traverse''
+
+genNoR ''CardEffects'
+
+cardEffectrMap :: CardEffects' card r1 a -> CardEffects' card r2 a
+cardEffectrMap = chR_CardEffects'
 
 deriveJSONGADT ''CardEffects'
 

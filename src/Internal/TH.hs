@@ -2,105 +2,24 @@
 
 {-# OPTIONS_HADDOCK not-home #-}
 
--- | This module provides Template Haskell functions for automatically generating
--- effect operation functions (that is, functions that use 'Polysemy.send') from a given
--- effect algebra. For example, using the @FileSystem@ effect from the example in
--- the module documentation for "Polysemy", we can write the following:
---
--- @
--- data FileSystem m a where
---   ReadFile  :: 'FilePath' -> FileSystem 'String'
---   WriteFile :: 'FilePath' -> 'String' -> FileSystem ()
---
--- 'makeSem' ''FileSystem
--- @
---
--- This will automatically generate (approximately) the following functions:
---
--- @
--- readFile :: 'Polysemy.Member' FileSystem r => 'FilePath' -> 'Polysemy.Sem' r 'String'
--- readFile a = 'Polysemy.send' (ReadFile a)
---
--- writeFile :: 'Polysemy.Member' FileSystem r => 'FilePath' -> 'String' -> 'Polysemy.Sem' r ()
--- writeFile a b = 'Polysemy.send' (WriteFile a b)
--- @
+-- Mostly copied from Polysemy.Internal.TH
+
 module Internal.TH
-  ( makeSemMonomorphised
+  ( makeSemMonomorphised, genNoR, genNoR'
   ) where
 
 import Control.Monad
 import Language.Haskell.TH
-#if __GLASGOW_HASKELL__ >= 902
+
 import Language.Haskell.TH.Syntax (addModFinalizer)
-#endif
+
 import Language.Haskell.TH.Datatype
 import Polysemy.Internal.TH.Common
 import Debug.Trace
 
-------------------------------------------------------------------------------
--- | If @T@ is a GADT representing an effect algebra, as described in the
--- module documentation for "Polysemy", @$('makeSem' ''T)@ automatically
--- generates a smart constructor for every data constructor of @T@. This also
--- works for data family instances. Names of smart constructors are created by
--- changing first letter to lowercase or removing prefix @:@ in case of
--- operators. Fixity declaration is preserved for both normal names and
--- operators.
---
--- @since 0.1.2.0
-makeSem :: Name -> Q [Dec]
-makeSem = genFreer True
+import Data.List
+import qualified Data.Map as Map
 
-
-------------------------------------------------------------------------------
--- | Like 'makeSem', but does not provide type signatures and fixities. This
--- can be used to attach Haddock comments to individual arguments for each
--- generated function.
---
--- @
--- data Output o m a where
---   Output :: o -> Output o m ()
---
--- makeSem_ ''Output
---
--- -- | Output the value \@o\@.
--- output :: forall o r
---        .  Member (Output o) r
---        => o         -- ^ Value to output.
---        -> Sem r ()  -- ^ No result.
--- @
---
--- Because of limitations in Template Haskell, signatures have to follow some
--- rules to work properly:
---
--- * 'makeSem_' must be used /before/ the explicit type signatures
--- * signatures have to specify argument of 'Polysemy.Sem' representing union of
--- effects as @r@ (e.g. @'Polysemy.Sem' r ()@)
--- * all arguments in effect's type constructor have to follow naming scheme
--- from data constructor's declaration:
---
--- @
--- data Foo e m a where
---   FooC1 :: Foo x m ()
---   FooC2 :: Foo (Maybe x) m ()
--- @
---
--- should have @x@ in type signature of @fooC1@:
---
--- @fooC1 :: forall x r. Member (Foo x) r => Sem r ()@
---
--- and @Maybe x@ in signature of @fooC2@:
---
--- @fooC2 :: forall x r. Member (Foo (Maybe x)) r => Sem r ()@
---
--- * all effect's type variables and @r@ have to be explicitly quantified
--- using @forall@ (order is not important)
---
--- These restrictions may be removed in the future, depending on changes to
--- the compiler.
---
--- @since 0.1.2.0
-makeSem_ :: Name -> Q [Dec]
-makeSem_ = genFreer False
 -- NOTE(makeSem_):
 -- This function uses an ugly hack to work --- it changes names in data
 -- constructor's type to capturable ones. This allows users to provide them to
@@ -115,9 +34,6 @@ makeSemMonomorphised :: Name -> Name -> Q [Dec]
 makeSemMonomorphised monoName effName = do
   genFreerMonomorphised (ConT monoName) True effName
 
-------------------------------------------------------------------------------
--- | Generates declarations and possibly signatures for functions to lift GADT
--- constructors into 'Polysemy.Sem' actions.
 replaceType :: Type -> Type -> Type -> Type
 replaceType search_this replace_this = go
   where
@@ -136,9 +52,9 @@ replaceType search_this replace_this = go
     go x = x
 
 monomorphiseConLiftInfo :: Type -> ConLiftInfo -> ConLiftInfo
-monomorphiseConLiftInfo new_type di = 
-  let 
-    [prev_type] = cliEffArgs di 
+monomorphiseConLiftInfo new_type di =
+  let
+    [prev_type] = cliEffArgs di
     effRes = cliEffRes di
     funArgs = cliFunArgs di
     funCxt = cliFunCxt di
@@ -161,14 +77,39 @@ genFreerMonomorphised mono should_mk_sigs type_name = do
   let sigs = if should_mk_sigs then genSig <$> cl_infos else []
   pure $ join $ sigs ++ decs
 
-genFreer :: Bool -> Name -> Q [Dec]
-genFreer should_mk_sigs type_name = do
+-- Generates a signature for a function Effect m1 a -> Effect m2 a.
+-- chR_Eff :: Eff m1 a -> Eff m2 a
+-- chR_Eff (Con1 arg) = Con1 arg
+-- chR_Eff (Con2 arg arg) = Con2 arg arg
+genNoR :: Name -> Q [Dec]
+genNoR = genNoR' mempty
+
+-- None of these approaches seem to work because of kind unification issues
+-- data FOCoerce f = forall {k1} {k2} (m1 :: k1) (m2 :: k2) (a :: *). Gah (f m1 a -> f m2 a)
+-- 
+-- class FO eff where
+--   chR :: forall {k1} {k2} (m1 :: k1) (m2 :: k2) a. eff m1 a -> eff m2 a
+
+-- instance FO (CardEffects' card) where
+--   chR = chR_CardEffects'
+
+-- Generates a signature for a function Effect m1 a -> Effect m2 a. Uses Map to replace variables with the key type
+-- with the value type applied to the variable, to allow for ad hoc coercions of other effects that occur in the constructor
+-- chR_Eff :: Eff m1 a -> Eff m2 a
+-- chR_Eff (Con1 arg) = Con1 arg
+-- chR_Eff (Con2 arg arg) = Con2 arg (chR_Eff2 arg)
+
+genNoR' :: Map.Map Name Name -> Name -> Q [Dec]
+genNoR' coerce_map type_name = do
+  let should_mk_sigs = True
   checkExtensions [ScopedTypeVariables, FlexibleContexts, DataKinds]
   cl_infos <- getEffectMetadata type_name
-  decs <- traverse (genDec should_mk_sigs) cl_infos
+  let fn_name = mkName $ "chR_" ++ nameBase type_name
+  let coerce_map_type = Map.mapKeys ConT coerce_map
+  decs <- genMyDec coerce_map_type fn_name cl_infos
 
-  let sigs = if should_mk_sigs then genSig <$> cl_infos else []
-  pure $ join $ sigs ++ decs
+  let sigs = if should_mk_sigs then genMySig (cl_infos!!0) fn_name else []
+  pure $ sigs ++ decs
 
 ------------------------------------------------------------------------------
 -- | Generates signature for lifting function and type arguments to apply in
@@ -184,11 +125,11 @@ genSig cli =
      ]
   where
     infixDecl = case cliFunFixity cli of
-#if __GLASGOW_HASKELL__ >= 910
-      Just fixity -> [InfixD fixity NoNamespaceSpecifier (cliFunName cli)]
-#else
+
+
+
       Just fixity -> [InfixD fixity (cliFunName cli)]
-#endif
+
       Nothing -> []
     member_cxt = makeMemberConstraint (cliUnionName cli) cli
     sem        = makeSemType (cliUnionName cli) (cliEffRes cli)
@@ -200,10 +141,10 @@ genSig cli =
 genDec :: Bool -> ConLiftInfo -> Q [Dec]
 genDec should_mk_sigs cli = do
   let fun_args_names = fst <$> cliFunArgs cli
-#if __GLASGOW_HASKELL__ >= 902
+
   doc <- getDoc $ DeclDoc $ cliConName cli
   maybe (pure ()) (addModFinalizer . putDoc (DeclDoc $ cliFunName cli)) doc
-#endif
+
   pure
     [ PragmaD $ InlineP (cliFunName cli) Inlinable ConLike AllPhases
     , FunD (cliFunName cli)
@@ -212,3 +153,44 @@ genDec should_mk_sigs cli = do
                  []
         ]
     ]
+
+getHead :: Type -> Type
+getHead (AppT x _) = getHead x
+getHead x = x
+
+makeArg :: Map.Map Type Name -> (Name, Type) -> Exp
+makeArg mapper (n, t) = case traceShow (n,t, mapper, getHead t) $ Map.lookup (getHead t) mapper of
+  Nothing -> VarE n
+  Just fn -> AppE (VarE fn) (VarE n)
+
+-- Constructs (Constructor arg1 arg2 arg3)
+makeAppliedConstructor :: Map.Map Type Name -> ConLiftInfo  -> Exp
+makeAppliedConstructor mapper cli =
+ foldl1' AppE $ ConE (cliConName cli) : (makeArg mapper <$> cliFunArgs cli)
+
+genMyDec :: Map.Map Type Name -> Name -> [ConLiftInfo] -> Q [Dec]
+genMyDec coerce_map fn_name clis = do
+    let fun_args_namess = fmap (\x -> (x, makeAppliedConstructor coerce_map x)) $ traceShowId clis
+    pure
+      [
+        FunD fn_name
+          [ Clause [ConP (cliConName concon) [] (VarP <$> (fst <$> cliFunArgs concon))]
+                   (NormalB x)
+                   [] | (concon, x) <- fun_args_namess
+          ]
+      ]
+
+genMySig :: ConLiftInfo -> Name -> [Dec]
+genMySig cli fn_name =
+  infixDecl
+  ++ [ SigD fn_name
+       $ AppT (AppT (makeEffectType cli) (VarT (mkName "m1"))) (VarT (mkName "a")) :-> AppT (AppT (makeEffectType cli) (VarT (mkName "m2"))) (VarT (mkName "a"))
+     ]
+  where
+    infixDecl = case cliFunFixity cli of
+
+
+
+      Just fixity -> [InfixD fixity (cliFunName cli)]
+
+      Nothing -> []

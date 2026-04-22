@@ -18,29 +18,6 @@ import Types
 import Effects.CardEffects
 import Internal.TH
 
-data EventAnswer f card = forall m a. EventAnswer (CardEffects' card m a) (f a)
-
-traverse'' :: (Applicative f, Traversable f1) => (c1 -> f c2) -> EventAnswer f1 c1 -> f (EventAnswer f1 c2)
-traverse'' f (EventAnswer (ModifyActions n) x) = pure $ EventAnswer (ModifyActions n) x
-traverse'' f (EventAnswer (ModifyBuys n) x) = pure $ EventAnswer (ModifyBuys n) x
-traverse'' f (EventAnswer (ModifyCurrency n) x) = pure $ EventAnswer (ModifyCurrency n) x
-traverse'' f (EventAnswer (ActivateCard pl c) x) = fmap (\a -> EventAnswer (ActivateCard pl a) x) (f c)
-traverse'' f (EventAnswer (DrawOnce pl) x) = fmap (EventAnswer (DrawOnce pl)) (traverse (traverse f) x)
-traverse'' f (EventAnswer (BlockOne pl c) x) = fmap (\a -> EventAnswer (BlockOne pl a) x) (f c)
-traverse'' f (EventAnswer (Discard pl c) x) = fmap (\a -> EventAnswer (Discard pl a) x) (f c)
-traverse'' f (EventAnswer (TrashCard pl c) x) = fmap (\a -> EventAnswer (TrashCard pl a) x) (f c)
-traverse'' f (EventAnswer (Reveal pl c) x) = fmap (\a -> EventAnswer (Reveal pl a) x) (f c)
-traverse'' f (EventAnswer (TopDeck pl c) x) = fmap (\a -> EventAnswer (TopDeck pl a) x) (f c)
-traverse'' f (EventAnswer (GainCardTo pl cf pos) x) = fmap (EventAnswer (GainCardTo pl cf pos)) (traverse (traverse f) x)
-
-instance (Traversable f1) => Functor (EventAnswer f1) where
-    fmap f = runIdentity . traverse (Identity . f)
-
-instance (Traversable f1) => Foldable (EventAnswer f1) where
-    foldMap f = getConst . traverse (Const . f)
-
-instance (Traversable f1) => Traversable (EventAnswer f1) where
-    traverse = traverse''
 
 --data LoggedEvent card = forall m a. LoggedEvent (CardEffects' card m a) a
 newtype LoggedEvent card = LoggedEvent {getLoggedEvent :: EventAnswer Identity card}
@@ -107,6 +84,10 @@ logCardMap f (LogBuy pl cf) = LogBuy pl cf
 logCardMap f (LogAct pl c) = LogAct pl (f c)
 logCardMap f (LogTreasure pl c) = LogTreasure pl (f c)
 logCardMap f (LogEffect eff) = LogEffect (fmap f eff)
+
+genNoR ''Log
+logMapR :: Log card m1 a -> Log card m2 a
+logMapR = chR_Log
 
 data LogToPlayer card m a where
   LogToPlayer :: Log card m () -> Player -> LogToPlayer card m ()

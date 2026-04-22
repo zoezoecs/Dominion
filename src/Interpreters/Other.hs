@@ -13,6 +13,7 @@ import Data.Monoid
 import Data.Function
 import Data.Constraint.Extras
 import qualified Data.Map as Map
+import Debug.Trace
 
 import Base
 import Types
@@ -21,7 +22,11 @@ import Cards
 import Interpreters.DoRedact
 
 
-interpCardEffects :: Members '[Stacks, State GameState, PlayerIO, BoardStateRead] r => (forall x. Sem (CardEffects : r) x -> Sem (CardEffects : r) x) -> Sem (CardEffects : r) a -> Sem r a
+interpCardEffects ::
+  (Members '[Stacks, State GameState, PlayerIO, BoardStateRead] r1,
+  Members '[Stacks, State GameState, PlayerIO, BoardStateRead] r2) =>
+  (forall x. Sem (CardEffects : r1) x -> Sem (CardEffects : r2) x) ->
+  Sem (CardEffects : r1) a -> Sem r2 a
 interpCardEffects inject = interpCardEffects' . inject
   where
     interpCardEffects' = interpret @CardEffects $ \case
@@ -63,12 +68,12 @@ redactReactEvent ev pl = evAnsReaction <$> redactEvent (reactionEvAns ev) pl
 -- Prompt the player to react, Maybe signals choosing to not buy
 playOneReaction' :: (Member DoReaction r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r (Maybe ()) -> Sem r (Maybe ())
 playOneReaction' player ceff ma if_invalid = do
-  redacted <- redactReactEvent (ReactionEvent (EventAnswer ceff ma)) player
+  redacted <- redactReactEvent (reactionEvent ceff ma) player
   mreact <- getPlayerReaction player redacted
   case mreact of
     Nothing -> return Nothing
     Just card -> do
-     moutcome <- doReaction player card (cardEffectrMap ceff) ma
+     moutcome <- doReaction player card (reactionEvent ceff ma)
      case moutcome of
       Left _   -> if_invalid
       Right outcome -> return $ Just outcome
@@ -86,12 +91,12 @@ playerReacts player cardEff = do
   _ <- playerReact player cardEff (Just ret) -- "after reactions"
   return ret
 
-injectReaction :: Members '[BoardStateRead, PlayerIO, CardEffects, DoReaction, Obscure] r => Sem r a -> Sem r a
+injectReaction :: Members '[BoardStateRead, PlayerIO, CardEffects, Obscure] r => Sem r a -> Sem (DoReaction:r) a
 injectReaction program = do
   players' <- getPlayers -- wrong semantics
   let players = Map.keys players' -- probably wrong
   let wah x = Endo $ intercept @CardEffects (playerReacts x)
-  appEndo (foldMap wah players) program
+  appEndo (foldMap wah players) (raise program)
 
 -- TODO: Fix this
 justGetStack :: Member Stacks r => Position -> Sem r [Card]
@@ -120,7 +125,7 @@ interpPlayerIO :: Member DataSerialised r => Sem (PlayerIO : r) a -> Sem r a
 interpPlayerIO = interpret (\eff -> dataOut (encode eff) >> untilJust (has @FromJSON eff decode <$> dataIn))
 
 interpPlayerIONoReact :: Member DataSerialised r => Sem (PlayerIO : r) a -> Sem r a
-interpPlayerIONoReact = interpret $ \case 
+interpPlayerIONoReact = interpret $ \case
   eff@(SendInfo{}) -> dataOut (encode eff)
   eff@(GetPlayerReaction{}) -> return Nothing
   eff -> (dataOut (encode eff) >> untilJust (has @FromJSON eff decode <$> dataIn))
@@ -129,3 +134,21 @@ serialiseToTerminal :: Member (Embed IO) r => InterpreterFor DataSerialised r
 serialiseToTerminal = interpret $ \case
   DataIn -> embed $ C.fromStrict <$> C.getLine
   DataOut bstr -> embed $ LC.putStrLn bstr
+
+maybePossible :: Members '[DataSerialised] r => PlayerIO (Sem rin) x -> [x] -> Sem r (Maybe x)
+maybePossible eff poss = do
+  bstr <- dataIn
+  case traceShowId $ decode @Int bstr of
+    Just n -> return $ poss !? n
+    Nothing -> return $ has @FromJSON eff $ decode bstr
+
+interpPlayerIOChoice :: Members '[ValidResponses, DataSerialised] r => InterpreterFor PlayerIO r
+interpPlayerIOChoice = interpret $ \eff -> do
+  dataOut (encode eff)
+  possibilities <- getValidResponses (playerIOmapR eff)
+  case possibilities of
+    [x] -> return x
+    _ -> do
+      dataOut . LC.pack $ "Possibilities:"
+      has @ToJSON eff $ forM_ (zip [0::Int ..] possibilities) (\(x,y) -> dataOut . mappend (LC.pack . show $ x) . encode $ y)
+      untilJust $ maybePossible eff possibilities

@@ -16,14 +16,16 @@ module Interpreters.Interpreters (
   interpGameLoop,
   interpGameRules,
   interpPlayerIO,
+  interpPlayerIOChoice,
   interpPlayerIONoReact,
   interpStateRead,
   runRandomUniqueId,
+  runValidResponses,
   serialiseToTerminal,
 ) where
 
 import Interpreters.Log (logEffects, logTurn, logPlayerToString, logToPlayerLog, runCorrelation, logPlayerToPlayerIO)
 import Interpreters.Stacks (interpStacks)
 import Interpreters.Random (interpRandomWithSeed, interpRandomGlobal, interpRandomShuffle, runRandomUniqueId)
-import Interpreters.Other (interpCardEffects, interpPlayerIO, interpStateRead, injectReaction, serialiseToTerminal, interpPlayerIONoReact)
-import Interpreters.GameLogic (interpGameLoop, interpGameRules, interpDoReaction)
+import Interpreters.Other (interpCardEffects, interpPlayerIO, interpStateRead, injectReaction, serialiseToTerminal, interpPlayerIONoReact, interpPlayerIOChoice)
+import Interpreters.GameLogic (interpGameLoop, interpGameRules, interpDoReaction, runValidResponses)
