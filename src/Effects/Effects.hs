@@ -12,6 +12,7 @@ import System.Random.Stateful
 
 import Base
 import Types
+import TypesSecret
 import Effects.CardEffects
 import Effects.PlayerIO
 import Effects.Log

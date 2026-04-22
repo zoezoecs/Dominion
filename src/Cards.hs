@@ -11,18 +11,15 @@ import Debug.Trace
 import Effects
 import Base
 import Types
+import TypesSecret
 
--- TODO: Think about extensibility vs guarantees with where this data goes...
 getFace :: Card -> CardFace
 getFace (MkCard _ face) = face
 
 getCardVP :: Card -> Int
 getCardVP = getFaceVP . getFace
 getFaceVP :: CardFace -> Int
-getFaceVP Province = 6
-getFaceVP Duchy = 3
-getFaceVP Estate = 1
-getFaceVP _ = 0
+getFaceVP = getFaceVP' . getFaceInfo
 
 -- Nothing represents not having a Treasure value
 -- 0 represents being a treasure that provides 0 value
@@ -42,7 +39,9 @@ getTypes :: CardFace -> [CardTypes]
 getTypes = getFaceTypes . getFaceInfo
 
 unknownLookupReaction :: CardFace -> Maybe HasReaction
-unknownLookupReaction cf = HasReaction <$ (getReaction . getFaceInfo) cf
+unknownLookupReaction = unknownLookupReaction' . getFaceInfo
+
+type FaceInfo = FaceInfo' CardTypes CardReactionSemantics CardSemantics
 
 lookupCardReaction :: Members '[CardEffects] r => Player -> Card -> Maybe (Reaction (Sem r) ())
 lookupCardReaction pl c =  do
@@ -58,22 +57,13 @@ knownLookupCond pl c hr = reactionMap (const (Const ())) blah
     blah :: Reaction (Sem '[CardEffects]) ()
     blah = knownLookupReaction pl c hr
 
-knownLookupCardReactionM :: Members '[CardEffects] r => Player -> Card -> HasReaction -> Sem r () -- TODO: fmap
+knownLookupCardReactionM :: Members '[CardEffects] r => Player -> Card -> HasReaction -> Sem r ()
 knownLookupCardReactionM pl card prf = case knownLookupReaction pl card prf  of
   BeforeReaction _ m -> m
   AfterReaction _ m -> m
 
 getEffect :: CardFace -> CardSemantics'
 getEffect = undefined
-
-data FaceInfo = FaceInfo {
-  getFaceVP' :: Int,
-  getFaceCurrency' :: Maybe Int,
-  getFaceCost' :: Int,
-  getFaceTypes :: [CardTypes],
-  getReaction :: Maybe CardReactionSemantics,
-  getEffect' :: Maybe CardSemantics
-}
 
 getFaceInfo :: CardFace -> FaceInfo
 getFaceInfo Bandit = FaceInfo 0 Nothing 5 [CardAction, CardAttack] Nothing (Just $ CardSemantics bandit)

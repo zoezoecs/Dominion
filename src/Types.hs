@@ -30,7 +30,6 @@ data InvalidReaction = NoCard | ConditionNotMet | NoReaction deriving (Eq, Ord, 
 
 data PlayerPosition = PlayerDeck | PlayerDiscardPile | PlayerHand | PlayerInPlay | PlayerSetAside deriving (Eq, Ord, Show, Generic)
 
-data HasReaction = HasReaction -- TODO: How can I move this into its own module properly
 -- data Kingdom = Kingdom
 -- data Treasure = Treasure
 -- data CurseSupply = CurseSupplye

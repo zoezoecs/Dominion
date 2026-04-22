@@ -13,7 +13,6 @@ import Base
 import Types
 import Effects
 import Cards
-import Debug.Trace
 
 interpGameLoop :: Members '[Stacks, State GameState, BoardStateRead, GameRules, CardEffects] r => Sem (GameLoop : r) a -> Sem r a
 interpGameLoop = interpret $ \case
@@ -49,7 +48,7 @@ interpGameLoop = interpret $ \case
         cardToPos card (PlayerCard player PlayerInPlay)
         modify $ modCurrency n
         return $ Right n
-      Left err -> trace "weh" $ return $ Left err
+      Left err -> return $ Left err
   DrawTurnStart pl n -> drawCard pl n
   DiscardHandCleanup pl -> do
     hand <- getHand pl

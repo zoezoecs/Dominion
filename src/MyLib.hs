@@ -40,7 +40,6 @@ stacksConfig players = PileConfig {
                  shuffleOnRefill = [PlayerCard pl PlayerDeck | pl <- players]
                  }
 
--- TODO: Separate initialisation and card creation? State init is annoying me...
 getFresh :: Member (State Int) r => Sem r Int
 getFresh = modify (+(1::Int)) >> get
 
