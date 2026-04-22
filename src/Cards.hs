@@ -36,7 +36,7 @@ getFaceCost :: CardFace -> Int
 getFaceCost = getFaceCost' . getFaceInfo
 
 getTypes :: CardFace -> [CardTypes]
-getTypes = getFaceTypes . getFaceInfo
+getTypes = getFaceTypes' . getFaceInfo
 
 unknownLookupReaction :: CardFace -> Maybe HasReaction
 unknownLookupReaction = unknownLookupReaction' . getFaceInfo
