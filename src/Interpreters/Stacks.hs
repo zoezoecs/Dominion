@@ -56,9 +56,7 @@ interpStacks cfg = interpret $ \case
                 return $ Just x
       CardToPos card loc -> do
         cardMap <- get @(Map Position [Card])
-        let notACard = Map.null $ Map.filter (elem card) cardMap
-        when notACard undefined
-        let newMap = fmap (filter (card /=)) cardMap -- undefined if this doesn't change it?
+        let newMap = fmap (filter (card /=)) cardMap
         let stack1 = unsafeLookup loc newMap
         void $ put $ Map.insert loc (card:stack1) newMap
 

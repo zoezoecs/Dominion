@@ -6,7 +6,6 @@ import Data.Maybe
 import Data.Functor.Const
 import Data.List ( (\\) )
 import qualified Data.Map as Map
-import Debug.Trace
 
 import Effects
 import Base
@@ -172,4 +171,7 @@ harbinger :: CardSemantics'
 harbinger player _ = void $ do
   discards <- getDiscardPile player
   sendStack PlayerDiscardPile discards
-  when _ $ cardToPos _ (PlayerCard player PlayerDeck)
+  mcard <- _
+  case mcard of
+    Just card -> cardToPos card (PlayerCard player PlayerDeck)
+    Nothing -> return ()

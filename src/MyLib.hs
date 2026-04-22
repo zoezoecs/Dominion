@@ -97,18 +97,14 @@ mainTest = main (MkPlayer <$> [1..3]) [Bandit, Moat]
 
 -- TODO: 
 -- Add all cards
--- Implement "Get Valid Moves" "for every PlayerIO prompt"
--- Implement playerIO no actions immediate return
 -- Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions? Relevant for player logging and especially reactions.
 -- See if I can fix the effect hierarchy
 -- We need interactive state queries lol
 
 -- consider card semantics locations
--- Consider Data formatting json vs haskell
 
 -- Stacks and bad locations
 -- Rules validation locations and coverage (c.f. Stacks and CardEffects impossible effect defaulting to signalled ignore)
 
 -- Splitting interpreter logic correctly
 -- Commutativity tests
--- Check the thing actually works lmao

@@ -93,8 +93,8 @@ playerReacts player cardEff = do
 
 injectReaction :: Members '[BoardStateRead, PlayerIO, CardEffects, Obscure] r => Sem r a -> Sem (DoReaction:r) a
 injectReaction program = do
-  players' <- getPlayers -- wrong semantics
-  let players = Map.keys players' -- probably wrong
+  players' <- getPlayers
+  let players = Map.keys players' -- TODO: This isn't correct, we need the current player's turn (NOT the card effect player). It doesn't matter much for base dominion though.
   let wah x = Endo $ intercept @CardEffects (playerReacts x)
   appEndo (foldMap wah players) (raise program)
 
