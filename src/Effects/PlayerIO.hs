@@ -66,9 +66,12 @@ data PlayerIO m a where
   GetAction :: Player -> PlayerIO m (Maybe Card)
   GetPlayTreasure :: Player -> PlayerIO m (Maybe Card)
   GetBuy :: Player -> PlayerIO m (Maybe CardFace)
+  GetDiscardAny :: Player -> [Card] -> PlayerIO m [Card]
   GetTrashAny :: Player -> [Card] -> PlayerIO m [Card]
+  GetTrashUpTo :: Player -> Int -> [Card] -> PlayerIO m [Card]
   GetTrashExactlyN :: Player -> Int -> [Card] -> PlayerIO m [Card]
   SendInfo :: Player -> Log PotentiallyObscured m a -> PlayerIO m () -- Monomorphised card for less GHC extensions
+  SendStack :: PlayerPosition -> [Card] -> PlayerIO m ()
   GetPlayerReaction :: Player -> ReactionEvent PotentiallyObscured -> PlayerIO m (Maybe Card)
 makeSem ''PlayerIO
 deriveJSONGADT ''PlayerIO

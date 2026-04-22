@@ -134,7 +134,7 @@ type RandomGenEff m = Input (HoldRandom m)
 -- 5. Emit an event for an attack into a big events datatype
 
 
-type CardSemantics' = forall r. Members [BoardStateRead, CardEffects, PlayerIO] r => Player -> Card -> Sem r ()
+type CardSemantics' = forall r. Members [BoardStateRead, CardEffects, Stacks, PlayerIO] r => Player -> Card -> Sem r ()
 type CardReactionSemantics' = forall r. (Members '[CardEffects] r) => Player -> Card -> Reaction (Sem r) ()
 newtype CardSemantics = CardSemantics {getSemantics :: CardSemantics'}
 newtype CardReactionSemantics = CardReactionSemantics {getReactionSemantics :: CardReactionSemantics'}

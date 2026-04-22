@@ -13,6 +13,43 @@ import Base
 import Types
 import TypesSecret
 
+type FaceInfo = FaceInfo' CardTypes CardReactionSemantics CardSemantics
+
+getFaceInfo :: CardFace -> FaceInfo
+getFaceInfo Copper        = FaceInfo 0 (Just 1) 0 [CardTreasure] Nothing Nothing
+getFaceInfo Silver        = FaceInfo 0 (Just 2) 3 [CardTreasure] Nothing Nothing
+getFaceInfo Gold          = FaceInfo 0 (Just 3) 6 [CardTreasure] Nothing Nothing
+getFaceInfo Estate        = FaceInfo 1 Nothing 2 [CardVictory] Nothing Nothing
+getFaceInfo Duchy         = FaceInfo 3 Nothing 5 [CardVictory] Nothing Nothing
+getFaceInfo Province      = FaceInfo 6 Nothing 8 [CardVictory] Nothing Nothing
+getFaceInfo Curse         = FaceInfo (-1) Nothing 0 [] Nothing Nothing
+getFaceInfo Cellar        = FaceInfo 0 Nothing 2 [CardAction] Nothing _
+getFaceInfo Chapel        = FaceInfo 0 Nothing 2 [CardAction] Nothing _
+getFaceInfo Moat          = FaceInfo 0 Nothing 2 [CardAction, CardReaction] (Just (CardReactionSemantics moatReact)) (Just $ CardSemantics moatPlay)
+getFaceInfo Harbinger     = FaceInfo 0 Nothing 3 [CardAction] Nothing _
+getFaceInfo Merchant      = FaceInfo 0 Nothing 3 [CardAction] Nothing _
+getFaceInfo Vassal        = FaceInfo 0 Nothing 3 [CardAction] Nothing _
+getFaceInfo Village       = FaceInfo 0 Nothing 3 [CardAction] Nothing _
+getFaceInfo Workshop      = FaceInfo 0 Nothing 3 [CardAction] Nothing _
+getFaceInfo Bureaucrat    = FaceInfo 0 Nothing 4 [CardAction, CardAttack] Nothing _
+getFaceInfo Gardens       = FaceInfo _ Nothing 4 [CardVictory] Nothing Nothing
+getFaceInfo Militia       = FaceInfo 0 Nothing 4 [CardAction, CardAttack] Nothing _
+getFaceInfo Moneylender   = FaceInfo 0 Nothing 4 [CardAction] Nothing _
+getFaceInfo Poacher       = FaceInfo 0 Nothing 4 [CardAction] Nothing _
+getFaceInfo Remodel       = FaceInfo 0 Nothing 4 [CardAction] Nothing _
+getFaceInfo Smithy        = FaceInfo 0 Nothing 4 [CardAction] Nothing _
+getFaceInfo ThroneRoom    = FaceInfo 0 Nothing 4 [CardAction] Nothing _
+getFaceInfo Bandit        = FaceInfo 0 Nothing 5 [CardAction, CardAttack] Nothing (Just $ CardSemantics bandit)
+getFaceInfo CouncilRoom   = FaceInfo 0 Nothing 5 [CardAction] Nothing _
+getFaceInfo Festival      = FaceInfo 0 Nothing 5 [CardAction] Nothing _
+getFaceInfo Laboratory    = FaceInfo 0 Nothing 5 [CardAction] Nothing _
+getFaceInfo Library       = FaceInfo 0 Nothing 5 [CardAction] Nothing _
+getFaceInfo Market        = FaceInfo 0 Nothing 5 [CardAction] Nothing _
+getFaceInfo Mine          = FaceInfo 0 Nothing 5 [CardAction] Nothing _
+getFaceInfo Sentry        = FaceInfo 0 Nothing 5 [CardAction] Nothing _
+getFaceInfo Witch         = FaceInfo 0 Nothing 5 [CardAction, CardAttack] Nothing _
+getFaceInfo Artisan       = FaceInfo 0 Nothing 6 [CardAction] Nothing _
+
 getFace :: Card -> CardFace
 getFace (MkCard _ face) = face
 
@@ -41,8 +78,6 @@ getTypes = getFaceTypes' . getFaceInfo
 unknownLookupReaction :: CardFace -> Maybe HasReaction
 unknownLookupReaction = unknownLookupReaction' . getFaceInfo
 
-type FaceInfo = FaceInfo' CardTypes CardReactionSemantics CardSemantics
-
 knownLookupReaction :: Members '[CardEffects] r => Player -> Card -> HasReaction -> Reaction (Sem r) ()
 knownLookupReaction pl c prf = getReactionSemantics (knownLookupReaction' prf (getFaceInfo . getFace $ c)) pl c
 
@@ -62,17 +97,16 @@ getEffect cf = case getFaceEffect' . getFaceInfo $ cf of
   Nothing -> \_ _ -> return ()
   Just x -> getSemantics x
 
-getFaceInfo :: CardFace -> FaceInfo
-getFaceInfo Bandit = FaceInfo 0 Nothing 5 [CardAction, CardAttack] Nothing (Just $ CardSemantics bandit)
-getFaceInfo Moat = FaceInfo 0 Nothing 2 [CardAction, CardReaction] (Just (CardReactionSemantics moatReact)) (Just $ CardSemantics moatPlay)
-getFaceInfo Copper = FaceInfo 0 (Just 1) 0 [CardTreasure] Nothing Nothing
-getFaceInfo Silver = FaceInfo 0 (Just 2) 3 [CardTreasure] Nothing Nothing
-getFaceInfo Gold = FaceInfo 0 (Just 3) 6 [CardTreasure] Nothing Nothing
-getFaceInfo Estate = FaceInfo 1 Nothing 2 [CardVictory] Nothing Nothing
-getFaceInfo Duchy = FaceInfo 3 Nothing 5 [CardVictory] Nothing Nothing
-getFaceInfo Province = FaceInfo 6 Nothing 8 [CardVictory] Nothing Nothing
-getFaceInfo Curse = FaceInfo (-1) Nothing 0 [] Nothing Nothing
-getFaceInfo card = traceShow card undefined
+
+
+isAttack :: CardFace -> Bool
+isAttack face = CardAttack `elem` getTypes face
+
+otherPlayerAttack :: Player -> CardEffects r a -> Bool
+otherPlayerAttack player (ActivateCard pl card) = (player /= pl) && isAttack (getFace card)
+otherPlayerAttack _ _ = False
+
+
 
 --bandit :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r ()
 bandit :: CardSemantics'
@@ -104,13 +138,6 @@ witch player _ = do
 moatPlay :: CardSemantics'
 moatPlay player _ = void $ drawCard player 2
 
-isAttack :: CardFace -> Bool
-isAttack face = CardAttack `elem` getTypes face
-
-otherPlayerAttack :: Player -> CardEffects r a -> Bool
-otherPlayerAttack player (ActivateCard pl card) = (player /= pl) && isAttack (getFace card)
-otherPlayerAttack _ _ = False
-
 moatReact :: (Members '[CardEffects] r) => Player -> Card -> Reaction (Sem r) ()
 moatReact player card = BeforeReaction (otherPlayerAttack player) moatBlock
   where
@@ -125,3 +152,24 @@ councilRoom player _ = do
   _ <- modifyBuys 1
   _ <- applyToOthers player (`drawCard` 1)
   return ()
+
+cellar :: CardSemantics'
+cellar player _ = void $ do
+  _ <- modifyActions 1
+  hand <- getHand player
+  cards <- getDiscardAny player hand
+  forM_ cards (discard player)
+  drawCard player (length cards)
+
+chapel :: CardSemantics'
+chapel player _ = void $ do
+  _ <- modifyActions 1
+  hand <- getHand player
+  cards <- getTrashUpTo player 4 hand
+  forM_ cards (trashCard player)
+
+harbinger :: CardSemantics'
+harbinger player _ = void $ do
+  discards <- getDiscardPile player
+  sendStack PlayerDiscardPile discards
+  when _ $ cardToPos _ (PlayerCard player PlayerDeck)
