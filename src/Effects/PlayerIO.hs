@@ -82,9 +82,5 @@ genNoR' (Map.singleton ''Log 'logMapR) ''PlayerIO
 playerIOmapR :: PlayerIO m1 a -> PlayerIO m2 a
 playerIOmapR = chR_PlayerIO
 
-data ValidResponses m a where
-  GetValidResponses :: PlayerIO m a -> ValidResponses m [a]
-makeSem ''ValidResponses
-
 getPlayerReaction' :: Member PlayerIO r => Player -> (forall m. CardEffects' PotentiallyObscured m a) -> Maybe a -> Sem r (Maybe Card)
 getPlayerReaction' pl ceff ma = getPlayerReaction pl (reactionEvent ceff ma)

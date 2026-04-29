@@ -16,6 +16,7 @@ import Types
 import TypesSecret
 import Effects.CardEffects
 import Effects.PlayerIO
+import Effects.Log
 
 
 
@@ -113,18 +114,6 @@ data GameRules m a where
     CanReact :: Player -> Card -> ReactionEvent Card -> GameRules m (Either InvalidReaction HasReaction)
 makeSem ''GameRules
 
--- Design choice: Messages to clients entirely through separate messages, and logs are reinterpreted from effects
--- Partial information managed by different messages with less information, no state tracking, no ability to refer to
--- previous messages for granular information (the card that was drawn 2 turns ago was a ...)
--- Clients don't reconstruct state, they just display the required information and collect the moves.
--- Clients don't see the card logic causality, they just see streams of events and must infer themselves.
--- How to make sure enough information gets through? We need a protocol.
-
-data DataSerialised m a where
-  DataIn :: DataSerialised m L.LazyByteString
-  DataOut :: L.LazyByteString -> DataSerialised m ()
-makeSem ''DataSerialised
-
 data RandomShuffle m a where
     RandomShuffle :: [a] -> RandomShuffle m [a]
 makeSem ''RandomShuffle
@@ -153,6 +142,34 @@ type RandomGenEff m = Input (HoldRandom m)
 -- 4. Rule combinators/overriding/biased monoids
 -- 5. Emit an event for an attack into a big events datatype
 
+
+-- Design choice: Messages to clients entirely through separate messages, and logs are reinterpreted from effects
+-- Partial information managed by different messages with less information, no state tracking, no ability to refer to
+-- previous messages for granular information (the card that was drawn 2 turns ago was a ...)
+-- Clients don't reconstruct state, they just display the required information and collect the moves.
+-- Clients don't see the card logic causality, they just see streams of events and must infer themselves.
+-- How to make sure enough information gets through? We need a protocol.
+data DataSerialised m a where
+  DataIn :: DataSerialised m L.LazyByteString
+  DataOut :: L.LazyByteString -> DataSerialised m ()
+makeSem ''DataSerialised
+
+data ValidResponses m a where
+  GetValidResponses :: PlayerIO m a -> ValidResponses m [a]
+makeSem ''ValidResponses
+
+data LogToPlayer card m a where
+  LogToPlayer :: Log card m () -> Player -> LogToPlayer card m ()
+makeSem ''LogToPlayer
+deriving instance Show card => Show (LogToPlayer card m a)
+
+data Obscure m a where
+  GetTempId :: Card -> Obscure m TempId
+makeSem ''Obscure
+
+data Correlation m a where
+  MkCorrelation :: m a -> Correlation m a
+makeSem ''Correlation
 
 type CardSemantics' = forall r. Members [BoardStateRead, CardEffects, Stacks, PlayerIO] r => Player -> Card -> Sem r ()
 type CardReactionSemantics' = forall r. (Members '[CardEffects] r) => Player -> Card -> Reaction (Sem r) ()

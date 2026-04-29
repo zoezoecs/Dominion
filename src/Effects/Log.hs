@@ -88,16 +88,3 @@ logCardMap f (LogEffect eff) = LogEffect (fmap f eff)
 genNoR ''Log
 logMapR :: Log card m1 a -> Log card m2 a
 logMapR = chR_Log
-
-data LogToPlayer card m a where
-  LogToPlayer :: Log card m () -> Player -> LogToPlayer card m ()
-makeSem ''LogToPlayer
-deriving instance Show card => Show (LogToPlayer card m a)
-
-data Obscure m a where
-  GetTempId :: Card -> Obscure m TempId
-makeSem ''Obscure
-
-data Correlation m a where
-  MkCorrelation :: m a -> Correlation m a
-makeSem ''Correlation
