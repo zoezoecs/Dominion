@@ -11,7 +11,7 @@ import qualified Data.Map as Map
 import Base
 import Types
 import Data
-import Interpreters.Interpreters
+import Interpreters
 import Effects
 import GameLoop
 import Debug.Trace
@@ -96,15 +96,17 @@ mainTest :: IO ()
 mainTest = main (MkPlayer <$> [1..3]) [Bandit, Moat]
 
 -- TODO: 
--- Add all cards
 -- Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions? Relevant for player logging and especially reactions.
 -- See if I can fix the effect hierarchy
 -- We need interactive state queries lol
-
--- consider card semantics locations
+-- Game flow choices like whether players have to play or react to things or not should be encoded in the interfaces
+-- Check card semantics
+-- Refactoring for Cards common functionality
+-- PlayerIO interface for selecting cards
 
 -- Stacks and bad locations
 -- Rules validation locations and coverage (c.f. Stacks and CardEffects impossible effect defaulting to signalled ignore)
 
 -- Splitting interpreter logic correctly
--- Commutativity tests
+-- Tests
+-- Criteria for success: No crashes, no exceptions, productive, no infinite loops
