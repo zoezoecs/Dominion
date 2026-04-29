@@ -2,6 +2,7 @@ module Base where
 
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe
 
 dupKey :: Map k () -> Map k k
 dupKey = Map.mapWithKey const
@@ -45,3 +46,8 @@ ifSuccessMaybe mmb mc = do
     x <- ma
     _ <- f x
     return x
+
+mTop :: Maybe [a] -> Maybe a
+mTop mcs = do
+  cs <- mcs
+  listToMaybe cs

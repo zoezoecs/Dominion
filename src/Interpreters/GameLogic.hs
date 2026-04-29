@@ -79,10 +79,10 @@ interpGameRules = interpret $ \case
     gs        <- get @GameState
     handCards <- getHand pl
     let result
-          | current_actions gs <= 0                          = Left NoActions
-          | CardAction `notElem` (getTypes . getFace) card   = Left NotAnAction
-          | card `notElem` handCards                         = Left CardPositionIncorrect
-          | otherwise                                        = Right ()
+          | current_actions gs <= 0              = Left NoActions
+          | CardAction `notElem` getTypes card   = Left NotAnAction
+          | card `notElem` handCards             = Left CardPositionIncorrect
+          | otherwise                            = Right ()
     return result
   CanTreasure pl card -> do
     handCards <- getHand pl
@@ -125,13 +125,18 @@ runValidResponses = interpret $ \case
     cardSuccess <- traverse (gah return (canTreasure pl)) handCards
     return $ Nothing:[Just c | (c,Right _) <- cardSuccess]
   GetValidResponses (GetBuy pl) -> do
-    potentialBuys <- activeKingdoms
+    potentialBuys <- activeSupplies
     cardSuccess <- traverse (gah return (canBuy pl)) potentialBuys
     return $ Nothing:[Just c | (c,Right _) <- cardSuccess]
-  GetValidResponses (GetTrashAny _ cards) -> return $ subsequences cards
-  GetValidResponses (GetTrashExactlyN _ n cards) -> return $ filter (\x -> length x == n) (subsequences cards)
+  -- GetValidResponses (GetTrashAny _ cards) -> return $ subsequences cards
+  -- GetValidResponses (GetTrashExactlyN _ n cards) -> return $ filter (\x -> length x == n) (subsequences cards)
   GetValidResponses (SendInfo _ _) -> return [()]
-  GetValidResponses (GetPlayerReaction pl reac) -> return [Nothing]
+  GetValidResponses (GetPlayerReaction _ _) -> return [Nothing] -- TODO: Fix
+  GetValidResponses (GetCardTEMP _ cards) -> return cards
+  GetValidResponses (GetCardsTEMP _ cards) -> return $ subsequences cards
+  GetValidResponses (GetMCardTEMP _ cards) -> return $ Nothing:(Just <$> cards)
+  GetValidResponses (SendStack _ _) -> return [()]
+  GetValidResponses (GetCardFaceTEMP _ faces) -> return faces
   --  do
   --  handCards <- getHand pl
   --  cardSuccess <- traverse (gah return (\c -> canReact pl c (fmap deidentify reac))) handCards

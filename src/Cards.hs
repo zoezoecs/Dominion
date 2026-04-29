@@ -2,59 +2,59 @@ module Cards where
 
 import Polysemy
 import Control.Monad
+import Control.Monad.Loops
 import Data.Maybe
 import Data.Functor.Const
-import Data.List ( (\\) )
-import qualified Data.Map as Map
+import Data.List
 
 import Effects
 import Base
 import Types
 import TypesSecret
 
-type FaceInfo = FaceInfo' CardTypes CardReactionSemantics CardSemantics
+type FaceInfo = FaceInfo' VictoryPoints CardTypes CardReactionSemantics CardSemantics
 
 getFaceInfo :: CardFace -> FaceInfo
-getFaceInfo Copper        = FaceInfo 0 (Just 1) 0 [CardTreasure] Nothing Nothing
-getFaceInfo Silver        = FaceInfo 0 (Just 2) 3 [CardTreasure] Nothing Nothing
-getFaceInfo Gold          = FaceInfo 0 (Just 3) 6 [CardTreasure] Nothing Nothing
-getFaceInfo Estate        = FaceInfo 1 Nothing 2 [CardVictory] Nothing Nothing
-getFaceInfo Duchy         = FaceInfo 3 Nothing 5 [CardVictory] Nothing Nothing
-getFaceInfo Province      = FaceInfo 6 Nothing 8 [CardVictory] Nothing Nothing
-getFaceInfo Curse         = FaceInfo (-1) Nothing 0 [] Nothing Nothing
-getFaceInfo Cellar        = FaceInfo 0 Nothing 2 [CardAction] Nothing _
-getFaceInfo Chapel        = FaceInfo 0 Nothing 2 [CardAction] Nothing _
-getFaceInfo Moat          = FaceInfo 0 Nothing 2 [CardAction, CardReaction] (Just (CardReactionSemantics moatReact)) (Just $ CardSemantics moatPlay)
-getFaceInfo Harbinger     = FaceInfo 0 Nothing 3 [CardAction] Nothing _
-getFaceInfo Merchant      = FaceInfo 0 Nothing 3 [CardAction] Nothing _
-getFaceInfo Vassal        = FaceInfo 0 Nothing 3 [CardAction] Nothing _
-getFaceInfo Village       = FaceInfo 0 Nothing 3 [CardAction] Nothing _
-getFaceInfo Workshop      = FaceInfo 0 Nothing 3 [CardAction] Nothing _
-getFaceInfo Bureaucrat    = FaceInfo 0 Nothing 4 [CardAction, CardAttack] Nothing _
-getFaceInfo Gardens       = FaceInfo _ Nothing 4 [CardVictory] Nothing Nothing
-getFaceInfo Militia       = FaceInfo 0 Nothing 4 [CardAction, CardAttack] Nothing _
-getFaceInfo Moneylender   = FaceInfo 0 Nothing 4 [CardAction] Nothing _
-getFaceInfo Poacher       = FaceInfo 0 Nothing 4 [CardAction] Nothing _
-getFaceInfo Remodel       = FaceInfo 0 Nothing 4 [CardAction] Nothing _
-getFaceInfo Smithy        = FaceInfo 0 Nothing 4 [CardAction] Nothing _
-getFaceInfo ThroneRoom    = FaceInfo 0 Nothing 4 [CardAction] Nothing _
-getFaceInfo Bandit        = FaceInfo 0 Nothing 5 [CardAction, CardAttack] Nothing (Just $ CardSemantics bandit)
-getFaceInfo CouncilRoom   = FaceInfo 0 Nothing 5 [CardAction] Nothing _
-getFaceInfo Festival      = FaceInfo 0 Nothing 5 [CardAction] Nothing _
-getFaceInfo Laboratory    = FaceInfo 0 Nothing 5 [CardAction] Nothing _
-getFaceInfo Library       = FaceInfo 0 Nothing 5 [CardAction] Nothing _
-getFaceInfo Market        = FaceInfo 0 Nothing 5 [CardAction] Nothing _
-getFaceInfo Mine          = FaceInfo 0 Nothing 5 [CardAction] Nothing _
-getFaceInfo Sentry        = FaceInfo 0 Nothing 5 [CardAction] Nothing _
-getFaceInfo Witch         = FaceInfo 0 Nothing 5 [CardAction, CardAttack] Nothing _
-getFaceInfo Artisan       = FaceInfo 0 Nothing 6 [CardAction] Nothing _
+getFaceInfo Copper      = FaceInfo (plainVP 0) (Just 1) 0 [CardTreasure] Nothing Nothing
+getFaceInfo Silver      = FaceInfo (plainVP 0) (Just 2) 3 [CardTreasure] Nothing Nothing
+getFaceInfo Gold        = FaceInfo (plainVP 0) (Just 3) 6 [CardTreasure] Nothing Nothing
+getFaceInfo Estate      = FaceInfo (plainVP 1) Nothing 2 [CardVictory] Nothing Nothing
+getFaceInfo Duchy       = FaceInfo (plainVP 3) Nothing 5 [CardVictory] Nothing Nothing
+getFaceInfo Province    = FaceInfo (plainVP 6) Nothing 8 [CardVictory] Nothing Nothing
+getFaceInfo Curse       = FaceInfo (plainVP (-1)) Nothing 0 [CardCurse] Nothing Nothing
+getFaceInfo Cellar      = FaceInfo (plainVP 0) Nothing 2 [CardAction] Nothing (Just $ CardSemantics cellar)
+getFaceInfo Chapel      = FaceInfo (plainVP 0) Nothing 2 [CardAction] Nothing (Just $ CardSemantics chapel)
+getFaceInfo Moat        = FaceInfo (plainVP 0) Nothing 2 [CardAction, CardReaction] (Just (CardReactionSemantics moatReact)) (Just $ CardSemantics moat)
+getFaceInfo Harbinger   = FaceInfo (plainVP 0) Nothing 3 [CardAction] Nothing (Just $ CardSemantics harbinger)
+getFaceInfo Merchant    = FaceInfo (plainVP 0) Nothing 3 [CardAction] Nothing (Just $ CardSemantics merchant)
+getFaceInfo Vassal      = FaceInfo (plainVP 0) Nothing 3 [CardAction] Nothing (Just $ CardSemantics vassal)
+getFaceInfo Village     = FaceInfo (plainVP 0) Nothing 3 [CardAction] Nothing (Just $ CardSemantics village)
+getFaceInfo Workshop    = FaceInfo (plainVP 0) Nothing 3 [CardAction] Nothing (Just $ CardSemantics workshop)
+getFaceInfo Bureaucrat  = FaceInfo (plainVP 0) Nothing 4 [CardAction, CardAttack] Nothing (Just $ CardSemantics bureaucrat)
+getFaceInfo Gardens     = FaceInfo (VPS [GardensVP]) Nothing 4 [CardVictory] Nothing Nothing
+getFaceInfo Militia     = FaceInfo (plainVP 0) Nothing 4 [CardAction, CardAttack] Nothing (Just $ CardSemantics militia)
+getFaceInfo Moneylender = FaceInfo (plainVP 0) Nothing 4 [CardAction] Nothing (Just $ CardSemantics moneylender)
+getFaceInfo Poacher     = FaceInfo (plainVP 0) Nothing 4 [CardAction] Nothing (Just $ CardSemantics poacher)
+getFaceInfo Remodel     = FaceInfo (plainVP 0) Nothing 4 [CardAction] Nothing (Just $ CardSemantics remodel)
+getFaceInfo Smithy      = FaceInfo (plainVP 0) Nothing 4 [CardAction] Nothing (Just $ CardSemantics smithy)
+getFaceInfo ThroneRoom  = FaceInfo (plainVP 0) Nothing 4 [CardAction] Nothing (Just $ CardSemantics throneRoom)
+getFaceInfo Bandit      = FaceInfo (plainVP 0) Nothing 5 [CardAction, CardAttack] Nothing (Just $ CardSemantics bandit)
+getFaceInfo CouncilRoom = FaceInfo (plainVP 0) Nothing 5 [CardAction] Nothing (Just $ CardSemantics councilRoom)
+getFaceInfo Festival    = FaceInfo (plainVP 0) Nothing 5 [CardAction] Nothing (Just $ CardSemantics festival)
+getFaceInfo Laboratory  = FaceInfo (plainVP 0) Nothing 5 [CardAction] Nothing (Just $ CardSemantics laboratory)
+getFaceInfo Library     = FaceInfo (plainVP 0) Nothing 5 [CardAction] Nothing (Just $ CardSemantics library)
+getFaceInfo Market      = FaceInfo (plainVP 0) Nothing 5 [CardAction] Nothing (Just $ CardSemantics market)
+getFaceInfo Mine        = FaceInfo (plainVP 0) Nothing 5 [CardAction] Nothing (Just $ CardSemantics mine)
+getFaceInfo Sentry      = FaceInfo (plainVP 0) Nothing 5 [CardAction] Nothing (Just $ CardSemantics sentry)
+getFaceInfo Witch       = FaceInfo (plainVP 0) Nothing 5 [CardAction, CardAttack] Nothing (Just $ CardSemantics witch)
+getFaceInfo Artisan     = FaceInfo (plainVP 0) Nothing 6 [CardAction] Nothing (Just $ CardSemantics artisan)
 
 getFace :: Card -> CardFace
 getFace (MkCard _ face) = face
 
-getCardVP :: Card -> Int
+getCardVP :: Card -> VictoryPoints
 getCardVP = getFaceVP . getFace
-getFaceVP :: CardFace -> Int
+getFaceVP :: CardFace -> VictoryPoints
 getFaceVP = getFaceVP' . getFaceInfo
 
 -- Nothing represents not having a Treasure value
@@ -71,8 +71,11 @@ getCost = getFaceCost . getFace
 getFaceCost :: CardFace -> Int
 getFaceCost = getFaceCost' . getFaceInfo
 
-getTypes :: CardFace -> [CardTypes]
-getTypes = getFaceTypes' . getFaceInfo
+getTypes :: Card -> [CardTypes]
+getTypes = getFaceTypes . getFace
+
+getFaceTypes :: CardFace -> [CardTypes]
+getFaceTypes = getFaceTypes' . getFaceInfo
 
 unknownLookupReaction :: CardFace -> Maybe HasReaction
 unknownLookupReaction = unknownLookupReaction' . getFaceInfo
@@ -97,22 +100,41 @@ getEffect cf = case getFaceEffect' . getFaceInfo $ cf of
   Just x -> getSemantics x
 
 
+hasFaceType :: CardTypes -> CardFace -> Bool
+hasFaceType ct card = ct `elem` getFaceTypes card
 
-isAttack :: CardFace -> Bool
-isAttack face = CardAttack `elem` getTypes face
+hasType :: CardTypes -> Card -> Bool
+hasType ct card = ct `elem` getTypes card
+
+isFace :: CardFace -> Card -> Bool
+isFace fc = (fc ==) . getFace
+
+isAttack :: Card -> Bool
+isAttack = hasType CardAttack
+
+isVictory :: Card -> Bool
+isVictory = hasType CardVictory
+
+isAction :: Card -> Bool
+isAction = hasType CardAction
+
+isTreasure :: Card -> Bool
+isTreasure = hasType CardTreasure
+
+isTreasureF :: CardFace -> Bool
+isTreasureF = hasFaceType CardTreasure
 
 otherPlayerAttack :: Player -> CardEffects r a -> Bool
-otherPlayerAttack player (ActivateCard pl card) = (player /= pl) && isAttack (getFace card)
+otherPlayerAttack player (ActivateCard pl card) = (player /= pl) && isAttack card
 otherPlayerAttack _ _ = False
 
 
 
 --bandit :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r ()
 bandit :: CardSemantics'
-bandit player _ = do
+bandit player _ = void $ do
   _ <- gainCard player Gold
-  players <- getPlayers
-  forM_ (dupKey $ Map.delete player players) bandited
+  applyToOthers player bandited
 
 bandited :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r ()
 bandited player = do
@@ -121,21 +143,21 @@ bandited player = do
   let cards = catMaybes [mcard0, mcard1]
   forM_ cards (reveal player)
   let nonCopperTreasure = filter ((/= Copper) . getFace) cards
-  toTrash <- getTrashExactlyN player 1 nonCopperTreasure
+  toTrash <- getCardsTEMP player nonCopperTreasure
   forM_ toTrash (trashCard player)
   forM_ (cards \\ toTrash) (discard player)
 
 --witch :: (Member CardEffects r) => Player -> Sem r ()
 witch :: CardSemantics'
 witch player _ = do
-  _ <- drawCard player 1
+  _ <- drawOnce player
   _ <- modifyActions 1
   _ <- applyToOthers player (`gainCard` Curse)
   return ()
 
 -- moatPlay :: (Member CardEffects r) => Player -> Sem r ()
-moatPlay :: CardSemantics'
-moatPlay player _ = void $ drawCard player 2
+moat :: CardSemantics'
+moat player _ = void $ drawCard player 2
 
 moatReact :: (Members '[CardEffects] r) => Player -> Card -> Reaction (Sem r) ()
 moatReact player card = BeforeReaction (otherPlayerAttack player) moatBlock
@@ -149,14 +171,14 @@ councilRoom :: CardSemantics'
 councilRoom player _ = do
   _ <- drawCard player 4
   _ <- modifyBuys 1
-  _ <- applyToOthers player (`drawCard` 1)
+  _ <- applyToOthers player drawOnce
   return ()
 
 cellar :: CardSemantics'
 cellar player _ = void $ do
   _ <- modifyActions 1
   hand <- getHand player
-  cards <- getDiscardAny player hand
+  cards <- getCardsTEMP player hand
   forM_ cards (discard player)
   drawCard player (length cards)
 
@@ -164,14 +186,167 @@ chapel :: CardSemantics'
 chapel player _ = void $ do
   _ <- modifyActions 1
   hand <- getHand player
-  cards <- getTrashUpTo player 4 hand
+  cards <- getCardsTEMP player hand -- up to 4
   forM_ cards (trashCard player)
 
 harbinger :: CardSemantics'
 harbinger player _ = void $ do
   discards <- getDiscardPile player
   sendStack PlayerDiscardPile discards
-  mcard <- _
+  mcard <- getMCardTEMP player discards
   case mcard of
     Just card -> cardToPos card (PlayerCard player PlayerDeck)
     Nothing -> return ()
+
+laboratory :: CardSemantics'
+laboratory player _ = void $ do
+  _ <- modifyActions 1
+  drawCard player 2
+
+festival :: CardSemantics'
+festival _ _ = void $ do
+  _ <- modifyActions 2
+  _ <- modifyBuys 1
+  modifyCurrency 2
+
+market :: CardSemantics'
+market player _ = void $ do
+  _ <- modifyActions 1
+  _ <- modifyBuys 1
+  _ <- modifyCurrency 1
+  drawCard player 1
+
+smithy :: CardSemantics'
+smithy player _ = void $ drawCard player 3
+
+village :: CardSemantics'
+village player _ = void $ drawCard player 1 >> modifyActions 2
+
+throneRoom :: CardSemantics'
+throneRoom player card = void $ do
+  hand <- getHand player
+  mcard <- getMCardTEMP player (delete card hand)
+  forM_ mcard (replicateM 2 . activateCard player)
+
+militia :: CardSemantics'
+militia player _ = void $ do
+  _ <- modifyCurrency 2
+  hand <- getHand player
+  keep_cards <- getCardsTEMP player hand -- keep 3
+  forM_ (hand \\ keep_cards) (discard player)
+
+vassal :: CardSemantics'
+vassal player _ = void $ do
+  _ <- modifyCurrency 2
+  mcard <- drawTo (PlayerCard player PlayerDeck) (PlayerCard player PlayerDiscardPile)
+  case mcard of
+    Nothing -> return ()
+    Just card -> when (CardAction `elem` getTypes card) $ void $ do -- reveal card?
+      mcard2 <- getMCardTEMP player [card]
+      traverse (activateCard player) mcard2
+
+poacher :: CardSemantics'
+poacher player _ = void $ do
+  _ <- modifyActions 1
+  _ <- modifyCurrency 1
+  _ <- drawCard player 1
+  hand <- getHand player
+  empty_supplies <- numEmptySupplies
+  to_discard <- getCardsTEMP player hand -- TODO: Discard n
+  forM_ to_discard (discard player)
+
+workshop :: CardSemantics'
+workshop player _ = void $ do
+  supplies <- activeSupplies
+  let canGain face = getFaceCost face <= 4
+  cf <- getCardFaceTEMP player (filter canGain supplies)
+  outcome <- gainCard player cf -- error handling?
+  return ()
+
+bureaucrat :: CardSemantics'
+bureaucrat player _ = void $ do
+  _ <- gainCardTo player Silver PlayerDeck
+  applyToOthers player bureaucrated
+
+bureaucrated :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r, Member Stacks r) => Player -> Sem r ()
+bureaucrated player = do
+  hand <- getHand player
+  let victories = filter isVictory hand
+  if null victories then forM_ hand (reveal player) else do
+    toShow <- getCardTEMP player victories
+    reveal player toShow
+    cardToPos toShow (PlayerCard player PlayerDeck)
+
+moneylender :: CardSemantics'
+moneylender player _ = do
+  hand <- getHand player
+  mcopper <- getMCardTEMP player (filter (isFace Copper) hand)
+  forM_ mcopper (\c -> trashCard player c >> modifyCurrency 3)
+
+remodel :: CardSemantics'
+remodel player _ = void $ do
+  hand <- getHand player
+  toTrash <- getCardTEMP player hand
+  trashCard player toTrash
+  supplies <- activeSupplies -- NOTE: Do we care to only return the nonempty stacks?
+  let canGain face = getFaceCost face <= (getCost toTrash + 2)
+  toGain <- getCardFaceTEMP player (filter canGain supplies)
+  outcome <- gainCard player toGain -- Error handling?
+  return ()
+
+mine :: CardSemantics'
+mine player _ = do
+  hand <- getHand player
+  mtrash <- getMCardTEMP player (filter isTreasure hand)
+  supplies <- activeSupplies -- NOTE: Do we care to only return the nonempty stacks?
+  let canGain c face = getFaceCost face <= (getCost c + 3)
+  forM_ mtrash (\c -> do
+    trashCard player c
+    getToGain <- getCardFaceTEMP player (filter (\x -> canGain c x && isTreasureF x) supplies)
+    outcome <- gainCard player getToGain
+    return ())
+
+artisan :: CardSemantics'
+artisan player _ = void $ do
+  supplies <- activeSupplies -- NOTE: Do we care to only return the nonempty stacks?
+  let canGain face = getFaceCost face <= 5
+  cf <- getCardFaceTEMP player (filter canGain supplies)
+  outcome <- gainCardTo player cf PlayerHand
+  hand <- getHand player
+  toTopdeck <- getCardTEMP player hand
+  cardToPos toTopdeck (PlayerCard player PlayerDeck)
+
+library :: CardSemantics'
+library player _ = void $ do
+  skipped_cards <- whileM (liftA2 (&&) (canDraw player) ((7 >=) . length <$> getHand player)) (libraryDraw player)
+  forM (catMaybes skipped_cards) (discard player)
+
+libraryDraw :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r, Member Stacks r) => Player -> Sem r (Maybe Card)
+libraryDraw player = do
+  mcard :: Maybe Card <- mTop <$> getStack (PlayerCard player PlayerDeck)
+  case mcard of
+    Nothing -> return Nothing
+    Just card -> do
+      toSkip <- getMCardTEMP player (filter isAction [card])
+      case toSkip of
+        Nothing -> drawOnce player
+        Just skip -> cardToPos skip (PlayerCard player PlayerInPlay) >> return (Just skip)
+  
+sentry :: CardSemantics'
+sentry player _ = do
+  _ <- drawCard player 1
+  _ <- modifyActions 1
+  deck <- getStack (PlayerCard player PlayerDeck)
+  let topTwo = take 2 . concat $ deck -- TODO: Incorrect. Should draw from discard if needed, and the code for this should be somewhere else.  Ensure n?
+  toTrash <- getCardsTEMP player topTwo
+  toDiscard <- getCardsTEMP player (topTwo \\ toTrash)
+  anyOrder <- getCardsTEMP player ((topTwo \\ toTrash) \\ toDiscard)
+  forM_ toTrash (trashCard player)
+  forM_ toDiscard (discard player)
+  forM_ anyOrder (`cardToPos` PlayerCard player PlayerDeck)
+
+merchant :: CardSemantics'
+merchant player _ = do
+  _ <- drawOnce player
+  _ <- modifyActions 1
+  undefined

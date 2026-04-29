@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, DerivingVia #-}
 module Types where
 
 import GHC.Generics
@@ -6,7 +6,6 @@ import Data.Aeson
 import Data.Map (Map)
 import qualified Data.Map as Map
 
--- TODO : Is this really the strat? c.f. design choice below
 data CardFace = Copper | Curse | Estate | Silver | Duchy | Gold | Province |
                 Cellar | Chapel | Moat | Harbinger | Merchant | Vassal | Village |
                 Workshop | Bureaucrat | Gardens | Militia |  Moneylender | Poacher |
@@ -18,7 +17,7 @@ newtype TempId = MkTempId Int deriving (Eq, Ord, Show, Generic)
 newtype ObscuredCard = Obscured TempId deriving (Eq, Ord, Show, Generic)
 newtype PotentiallyObscured = PObscured (Either (Card, TempId) ObscuredCard) deriving (Eq, Ord, Show, Generic)
 
-data CardTypes = CardAttack | CardReaction | CardAction | CardTreasure | CardVictory deriving (Eq, Ord, Show, Generic)
+data CardTypes = CardAttack | CardReaction | CardAction | CardTreasure | CardVictory | CardCurse deriving (Eq, Ord, Show, Generic)
 newtype Player = MkPlayer Int deriving (Ord, Eq, Show, Generic)
 
 -- Obvious design choice: Representing errors and card positions as data
@@ -30,20 +29,19 @@ data InvalidReaction = NoCard | ConditionNotMet | NoReaction deriving (Eq, Ord, 
 
 data PlayerPosition = PlayerDeck | PlayerDiscardPile | PlayerHand | PlayerInPlay | PlayerSetAside deriving (Eq, Ord, Show, Generic)
 
--- data Kingdom = Kingdom
--- data Treasure = Treasure
--- data CurseSupply = CurseSupplye
--- data BasicSupply = TreasureSupply | VictorySupply | CurseSupply
+data VictoryPointsType = PlainVP | GardensVP deriving (Eq, Ord, Show, Generic)
+newtype VictoryPoints = VPS [VictoryPointsType] deriving (Eq, Ord, Show, Generic)
+deriving via [VictoryPointsType] instance Semigroup VictoryPoints
+deriving via [VictoryPointsType] instance Monoid VictoryPoints
 
--- Design choice: Maybe I just leave Kingdom/Treasure/Blah status to predicates?
--- If I break the card faces up into subsets its annoying to write "Gains a Copper"
--- But if I do this its a little annoying to say "Gain a Treasure"
--- c.f. Gain a treasure costing up to..
+plainVP :: Int -> VictoryPoints
+plainVP n = VPS $ replicate n PlainVP
+
+-- Note: Kingdom vs non-kingdom cards aren't separated structurally.
 data Position = PlayerCard Player PlayerPosition | Supply CardFace | Trash deriving (Eq, Ord, Show, Generic)
 
 allPositions :: [PlayerPosition]
 allPositions = [PlayerDeck, PlayerDiscardPile, PlayerHand, PlayerInPlay, PlayerSetAside]
-
 
 -- Obvious design choice: state is a big datatype
 data GameState = MkGameState {

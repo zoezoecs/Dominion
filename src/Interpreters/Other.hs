@@ -98,26 +98,29 @@ injectReaction program = do
   let wah x = Endo $ intercept @CardEffects (playerReacts x)
   appEndo (foldMap wah players) (raise program)
 
--- TODO: Fix this
-justGetStack :: Member Stacks r => Position -> Sem r [Card]
-justGetStack p = do
-    mstack <- getStack p
-    maybe undefined return mstack
+calculateVP :: Int -> VictoryPoints -> Int
+calculateVP total_cards (VPS vps) = sum $ calcValue <$> vps
+  where
+    calcValue :: VictoryPointsType -> Int
+    calcValue PlainVP = 1
+    calcValue GardensVP = div total_cards 10
 
+-- TODO: Fix this
 interpStateRead :: Members '[Stacks, State GameState] r => Sem (BoardStateRead : r) a -> Sem r a
 interpStateRead = interpret $ \case
   GetPlayers -> flip constMap () <$> (all_players <$> get)
-  GetVP pl -> sum <$> (fmap getCardVP <$> (join <$> mapM (justGetStack . PlayerCard pl) allPositions))
+  GetVP pl -> do
+    playerCards <- join <$> mapM (justGetStack . PlayerCard pl) allPositions
+    return . calculateVP (length playerCards). mconcat . fmap getCardVP $ playerCards
   GetHand pl -> justGetStack (PlayerCard pl PlayerHand)
   GetDeck pl -> justGetStack (PlayerCard pl PlayerDeck)
   GetTopCard pl -> flip (!?) (1::Int) <$> justGetStack (PlayerCard pl PlayerDeck)
   GetTopNCard pl n -> flip (!?) n <$> justGetStack (PlayerCard pl PlayerDeck)
   GetDiscardPile pl -> justGetStack (PlayerCard pl PlayerDiscardPile)
   IsGameOver -> do
-    cards <- activeKingdoms
-    emptyPiles <- forM cards (\face -> null <$> getStack (Supply face))
+    emptyPiles <- numEmptySupplies
     provinces <- justGetStack (Supply Province)
-    return $ null provinces || countElem True emptyPiles >= 3
+    return $ null provinces || emptyPiles >= 3
 
 interpPlayerIO :: Member DataSerialised r => Sem (PlayerIO : r) a -> Sem r a
 interpPlayerIO = interpret (\eff -> dataOut (encode eff) >> untilJust (has @FromJSON eff decode <$> dataIn))

@@ -4,7 +4,8 @@ module Effects.Effects where
 
 import Polysemy
 import Polysemy.Input
-import Data.ByteString.Lazy
+import Control.Monad
+import qualified Data.ByteString.Lazy as L
 import Data.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -32,6 +33,11 @@ data PileConfig t = PileConfig
   { refillFrom  :: Map Position Position,   -- when empty, refill from here
     shuffleOnRefill :: t Position}          -- shuffle after refilling
 
+justGetStack :: Member Stacks r => Position -> Sem r [Card]
+justGetStack p = do
+    mstack <- getStack p
+    maybe undefined return mstack
+
 isSupply :: Position -> Maybe CardFace
 isSupply (Supply c) = Just c
 isSupply _ = Nothing
@@ -39,8 +45,23 @@ isSupply _ = Nothing
 getSupplies :: [Position] -> [CardFace]
 getSupplies = mapMaybe isSupply
 
-activeKingdoms :: Member Stacks r => Sem r [CardFace]
-activeKingdoms = getSupplies <$> activePositions
+activeSupplies :: Member Stacks r => Sem r [CardFace]
+activeSupplies = getSupplies <$> activePositions
+
+emptySupplies :: Member Stacks r => Sem r [CardFace]
+emptySupplies = do
+    cards <- activeSupplies
+    emptyPiles <- forM cards (\face -> (\x -> (face, null <$> x)) <$> getStack (Supply face))
+    return . fmap fst . filter ((== Just True) . snd) $ emptyPiles
+
+numEmptySupplies :: Member Stacks r => Sem r Int
+numEmptySupplies = length <$> emptySupplies
+
+canDraw :: (Member Stacks r) => Player -> Sem r Bool -- TODO: Add to interface?
+canDraw pl = do
+  deck <- justGetStack (PlayerCard pl PlayerDeck)
+  disc <- justGetStack (PlayerCard pl PlayerDiscardPile)
+  return . not . null $ deck ++ disc
 
 data BoardStateRead m a where
   GetPlayers :: BoardStateRead m (Map Player ())
@@ -100,8 +121,8 @@ makeSem ''GameRules
 -- How to make sure enough information gets through? We need a protocol.
 
 data DataSerialised m a where
-  DataIn :: DataSerialised m LazyByteString
-  DataOut :: LazyByteString -> DataSerialised m ()
+  DataIn :: DataSerialised m L.LazyByteString
+  DataOut :: L.LazyByteString -> DataSerialised m ()
 makeSem ''DataSerialised
 
 data RandomShuffle m a where

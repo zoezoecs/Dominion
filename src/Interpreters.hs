@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
-module Interpreters.Interpreters (
+module Interpreters (
   logEffects,
   logTurn,
   logPlayerToString,
