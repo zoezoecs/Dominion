@@ -35,7 +35,7 @@ bindRight :: Monad m => m (Either a b) -> (b -> m c) -> m (Either a c)
 bindRight m k = bind2 m (pure . Left) (fmap Right . k)
 
 bindRight' :: Monad m => m (Either a b) -> (b -> m c) -> m (Either a b)
-bindRight' m k = bind2 m (pure . Left) (\x -> k x >> return (Right x))
+bindRight' m k = bind2 m (pure . Left) (\x -> k x >> pure (Right x))
 
 ifSuccess :: Monad m => m (Either a b) -> m c -> m (Either a b)
 ifSuccess a b = bindRight' a (const b)
@@ -44,14 +44,14 @@ ifSuccessMaybe :: Monad m => m (Maybe b) -> (b -> m c) -> m (Maybe b)
 ifSuccessMaybe mmb mc = do
     mb <- mmb
     case mb of
-        Nothing -> return Nothing
-        Just x -> mc x >> return (Just x)
+        Nothing -> pure Nothing
+        Just x -> mc x >> pure (Just x)
     
 (>>=/) :: Monad m => m a -> (a -> m b) -> m a
 (>>=/) ma f = do
     x <- ma
     _ <- f x
-    return x
+    pure x
 
 mTop :: Maybe [a] -> Maybe a
 mTop mcs = do

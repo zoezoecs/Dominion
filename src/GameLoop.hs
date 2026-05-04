@@ -17,35 +17,35 @@ playOneAction' :: (Member GameLoop r, Member PlayerIO r) => Player -> Sem r (May
 playOneAction' player if_invalid = do
   mcard <- getAction player
   case mcard of
-    Nothing -> return Nothing
+    Nothing -> pure Nothing
     Just card -> do
       mplay <- playFromHand player card
       case mplay of
         Left _ -> if_invalid
-        Right () -> return $ Just card
+        Right () -> pure $ Just card
 
 -- Prompt the player to buy, Maybe signals choosing to not buy
 playOneBuy' :: (Member GameLoop r, Member PlayerIO r) => Player -> Sem r (Maybe Card) -> Sem r (Maybe Card)
 playOneBuy' player if_invalid = do
   mcardface <- getBuy player
   case mcardface of
-    Nothing -> return Nothing
+    Nothing -> pure Nothing
     Just cardface -> do
      mcard <- buyCard player cardface
      case mcard of
       Left _   -> if_invalid
-      Right card -> return $ Just card
+      Right card -> pure $ Just card
 
 playOneTreasure' :: (Member GameLoop r, Member PlayerIO r) => Player -> Sem r (Maybe Int) -> Sem r (Maybe Int)
 playOneTreasure' player if_invalid = do
     mtreasure <- getPlayTreasure player
     case mtreasure of
-        Nothing -> return Nothing
+        Nothing -> pure Nothing
         Just card -> do
             msuccess <- playTreasure player card
             case msuccess of
                 Left _ -> if_invalid
-                Right n -> return $ Just n
+                Right n -> pure $ Just n
 
 playOneAction :: (Member GameLoop r, Member PlayerIO r) => Player -> Sem r (Maybe Card)
 playOneAction player = fix $ playOneAction' player

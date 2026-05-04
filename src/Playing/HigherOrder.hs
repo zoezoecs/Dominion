@@ -157,7 +157,7 @@ runCounter = reinterpret $ \case
     n <- get
     put $ n+1
     embed $ print n
-    return $ n+1
+    pure $ n+1
 
 runGroupCounter :: Members '[Embed IO] r => Sem (GroupCounter : r) a -> Sem r a
 runGroupCounter = interpretH $ \case
@@ -166,12 +166,12 @@ runGroupCounter = interpretH $ \case
     --let calc = raise @Counter . raise @(State Int) $ calc'
     let calc = subsume_ calc'
     (n, blah) <- raise . runGroupCounter . runState (2::Int) . runCounter $ calc
-    return blah
+    pure blah
 
 mockState :: s -> Sem (State s : r) a -> Sem r a
 mockState s = interpret $ \case
-  Get -> return s
-  Put _ -> return ()
+  Get -> pure s
+  Put _ -> pure ()
 
 mainCounter :: IO Int
 mainCounter = runM . 

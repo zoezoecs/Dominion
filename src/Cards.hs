@@ -96,7 +96,7 @@ knownLookupCardReactionM pl card prf = case knownLookupReaction pl card prf  of
 
 getEffect :: CardFace -> CardSemantics'
 getEffect cf = case getFaceEffect' . getFaceInfo $ cf of
-  Nothing -> \_ _ -> return ()
+  Nothing -> \_ _ -> pure ()
   Just x -> getSemantics x
 
 
@@ -146,7 +146,7 @@ witch player _ = do
   _ <- drawOnce player
   _ <- modifyActions 1
   _ <- applyToOthers player (`gainCard` Curse)
-  return ()
+  pure ()
 
 moat :: CardSemantics'
 moat player _ = void $ drawCard player 2
@@ -163,7 +163,7 @@ councilRoom player _ = do
   _ <- drawCard player 4
   _ <- modifyBuys 1
   _ <- applyToOthers player drawOnce
-  return ()
+  pure ()
 
 smithy :: CardSemantics'
 smithy player _ = void $ drawCard player 3
@@ -224,7 +224,7 @@ harbinger player _ = void $ do
   mcard <- getMCardTEMP player discards
   case mcard of
     Just card -> cardToPos card (PlayerCard player PlayerDeck)
-    Nothing -> return ()
+    Nothing -> pure ()
 
 militia :: CardSemantics'
 militia player _ = void $ do
@@ -238,7 +238,7 @@ vassal player _ = void $ do
   _ <- modifyCurrency 2
   mcard <- drawTo (PlayerCard player PlayerDeck) (PlayerCard player PlayerDiscardPile)
   case mcard of
-    Nothing -> return ()
+    Nothing -> pure ()
     Just card -> when (CardAction `elem` getTypes card) $ void $ do
       mcard2 <- getMCardTEMP player [card]
       traverse (activateCard player) mcard2
@@ -257,7 +257,7 @@ workshop :: CardSemantics'
 workshop player _ = void $ do
   let canGain face = getFaceCost face <= 4
   outcome <- gainSt player canGain
-  return ()
+  pure ()
 
 bureaucrat :: CardSemantics'
 bureaucrat player _ = void $ do
@@ -286,19 +286,19 @@ remodel player _ = void $ do
   trashCard player toTrash
   let canGain face = getFaceCost face <= (getCost toTrash + 2)
   outcome <- gainSt player canGain
-  return ()
+  pure ()
 
 mine :: CardSemantics'
 mine player _ = do
   hand <- getHand player
   mtrash <- getMCardTEMP player (filter isTreasure hand)
-  supplies <- activeSupplies -- NOTE: Do we care to only return the nonempty stacks?
+  supplies <- activeSupplies -- NOTE: Do we care to only pure the nonempty stacks?
   let canGain c face = getFaceCost face <= (getCost c + 3)
   forM_ mtrash (\c -> do
     trashCard player c
     getToGain <- getCardFaceTEMP player (filter (\x -> canGain c x && isTreasureF x) supplies)
     outcome <- gainCard player getToGain
-    return ())
+    pure ())
 
 artisan :: CardSemantics'
 artisan player _ = void $ do
@@ -317,12 +317,12 @@ libraryDraw :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r
 libraryDraw player = do
   mcard  <- mTop <$> getStack (PlayerCard player PlayerDeck) -- also wrong, won't reshuffle if the deck empties
   case mcard of
-    Nothing -> return Nothing
+    Nothing -> pure Nothing
     Just card -> do
       toSkip <- getMCardTEMP player (filter isAction [card])
       case toSkip of
         Nothing -> drawOnce player
-        Just skip -> cardToPos skip (PlayerCard player PlayerInPlay) >> return (Just skip)
+        Just skip -> cardToPos skip (PlayerCard player PlayerInPlay) >> pure (Just skip)
   
 sentry :: CardSemantics'
 sentry player _ = do
@@ -355,6 +355,6 @@ bandited player = do
   let cards = catMaybes [mcard0, mcard1]
   forM_ cards (reveal player)
   let nonCopperTreasure = filter ((/= Copper) . getFace) cards
-  toTrash <- if null nonCopperTreasure then return [] else singleton <$> getCardTEMP player nonCopperTreasure
+  toTrash <- if null nonCopperTreasure then pure [] else singleton <$> getCardTEMP player nonCopperTreasure
   forM_ toTrash (trashCard player)
   forM_ (cards \\ toTrash) (discard player)

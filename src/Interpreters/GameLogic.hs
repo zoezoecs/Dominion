@@ -23,30 +23,30 @@ interpGameLoop = interpret $ \case
   BuyCard player face -> do
     valid_buy <- canBuy player face
     case valid_buy of
-      Left err -> return $ Left err
+      Left err -> pure $ Left err
       Right () -> do
         mcard <- gainCard player face
         case mcard of
-          Left err -> return $ Left (BadGain err)
+          Left err -> pure $ Left (BadGain err)
           Right card -> do modify (modBuys (-1))
-                           return $ Right card
+                           pure $ Right card
   PlayFromHand player card -> do
     valid_action <- canAct player card
     case valid_action of
-      Left err -> return $ Left err
+      Left err -> pure $ Left err
       Right () -> do
         cardToPos card (PlayerCard player PlayerInPlay)
         modify (modActions (-1))
         activateCard player card
-        return $ Right ()
+        pure $ Right ()
   PlayTreasure player card -> do
     valid_treasure <- canTreasure player card
     case valid_treasure of
       Right n -> do
         cardToPos card (PlayerCard player PlayerInPlay)
         modify $ modCurrency n
-        return $ Right n
-      Left err -> return $ Left err
+        pure $ Right n
+      Left err -> pure $ Left err
   DrawTurnStart pl n -> drawCard pl n
   DiscardHandCleanup pl -> do
     hand <- getHand pl
@@ -59,10 +59,10 @@ interpDoReaction = interpret $ \case
   DoReaction pl card reac -> do
     valid_reaction <- canReact pl card reac
     case valid_reaction of
-      Left err -> return . Left $ err
+      Left err -> pure . Left $ err
       Right has_reaction -> do
         knownLookupCardReactionM pl card has_reaction
-        return . Right $ ()
+        pure . Right $ ()
 
 interpGameRules :: Members '[State GameState, Stacks, BoardStateRead] r => Sem (GameRules : r) a -> Sem r a
 interpGameRules = interpret $ \case
@@ -75,7 +75,7 @@ interpGameRules = interpret $ \case
           | isNothing stack                         = Left $ BadGain NotInKingdom
           | stack == Just []                        = Left $ BadGain EmptySupply
           | otherwise                               = Right ()
-    return result
+    pure result
   CanAct pl card -> do
     gs        <- get @GameState
     handCards <- getHand pl
@@ -84,20 +84,20 @@ interpGameRules = interpret $ \case
           | CardAction `notElem` getTypes card   = Left NotAnAction
           | card `notElem` handCards             = Left CardPositionIncorrect
           | otherwise                            = Right ()
-    return result
+    pure result
   CanTreasure pl card -> do
     handCards <- getHand pl
     let result
           | card `notElem` handCards = Left TreasurePositionIncorrect
           | otherwise                = Right ()
     case (result, getCurrency card) of
-      (Left err, _) -> return $ Left err
-      (Right (), Nothing) -> return $ Left NotATresure
-      (Right (), Just n) -> return $ Right n
+      (Left err, _) -> pure $ Left err
+      (Right (), Nothing) -> pure $ Left NotATresure
+      (Right (), Just n) -> pure $ Right n
   CanReact pl card (ReactionEvent (EventAnswer ceff ma)) -> do
     handCards <- getHand pl
     case unknownLookupReaction (getFace card) of
-          Nothing -> return $ Left NoReaction
+          Nothing -> pure $ Left NoReaction
           Just has_reac -> do
             let cond_true = case (knownLookupCond pl card has_reac, ma) of
                       (BeforeReaction cond _, Nothing) -> cond (cardEffectrMap ceff)
@@ -107,7 +107,7 @@ interpGameRules = interpret $ \case
                   | card `notElem` handCards = Left NoCard
                   | cond_true                = Left ConditionNotMet
                   | otherwise                = Right has_reac
-            return result
+            pure result
 
 deidentify :: PotentiallyObscured -> Card
 deidentify = undefined
@@ -116,29 +116,29 @@ runValidResponses :: Members '[BoardStateRead, Stacks, GameRules] r => Interpret
 runValidResponses = interpret $ \case
   GetValidResponses (GetAction pl) -> do
     handCards <- getHand pl
-    cardSuccess <- traverse (fanout return (canAct pl)) handCards
-    return $ Nothing:[Just c | (c,Right _) <- cardSuccess]
+    cardSuccess <- traverse (fanout pure (canAct pl)) handCards
+    pure $ Nothing:[Just c | (c,Right _) <- cardSuccess]
   GetValidResponses (GetPlayTreasure pl) -> do
     handCards <- getHand pl
-    cardSuccess <- traverse (fanout return (canTreasure pl)) handCards
-    return $ Nothing:[Just c | (c,Right _) <- cardSuccess]
+    cardSuccess <- traverse (fanout pure (canTreasure pl)) handCards
+    pure $ Nothing:[Just c | (c,Right _) <- cardSuccess]
   GetValidResponses (GetBuy pl) -> do
     potentialBuys <- activeSupplies
-    cardSuccess <- traverse (fanout return (canBuy pl)) potentialBuys
-    return $ Nothing:[Just c | (c,Right _) <- cardSuccess]
-  -- GetValidResponses (GetTrashAny _ cards) -> return $ subsequences cards
-  -- GetValidResponses (GetTrashExactlyN _ n cards) -> return $ filter (\x -> length x == n) (subsequences cards)
-  GetValidResponses (SendInfo _ _) -> return [()]
-  GetValidResponses (GetPlayerReaction _ _) -> return [Nothing] -- TODO: Fix
-  GetValidResponses (GetCardTEMP _ cards) -> return cards
-  GetValidResponses (GetCardsTEMP _ cards) -> return $ subsequences cards
-  GetValidResponses (GetMCardTEMP _ cards) -> return $ Nothing:(Just <$> cards)
-  GetValidResponses (SendStack _ _) -> return [()]
-  GetValidResponses (GetCardFaceTEMP _ faces) -> return faces
+    cardSuccess <- traverse (fanout pure (canBuy pl)) potentialBuys
+    pure $ Nothing:[Just c | (c,Right _) <- cardSuccess]
+  -- GetValidResponses (GetTrashAny _ cards) -> pure $ subsequences cards
+  -- GetValidResponses (GetTrashExactlyN _ n cards) -> pure $ filter (\x -> length x == n) (subsequences cards)
+  GetValidResponses (SendInfo _ _) -> pure [()]
+  GetValidResponses (GetPlayerReaction _ _) -> pure [Nothing] -- TODO: Fix
+  GetValidResponses (GetCardTEMP _ cards) -> pure cards
+  GetValidResponses (GetCardsTEMP _ cards) -> pure $ subsequences cards
+  GetValidResponses (GetMCardTEMP _ cards) -> pure $ Nothing:(Just <$> cards)
+  GetValidResponses (SendStack _ _) -> pure [()]
+  GetValidResponses (GetCardFaceTEMP _ faces) -> pure faces
   --  do
   --  handCards <- getHand pl
-  --  cardSuccess <- traverse (gah return (\c -> canReact pl c (fmap deidentify reac))) handCards
-  --  return $ Nothing:[Just c | (c,Right _) <- cardSuccess]
+  --  cardSuccess <- traverse (gah pure (\c -> canReact pl c (fmap deidentify reac))) handCards
+  --  pure $ Nothing:[Just c | (c,Right _) <- cardSuccess]
 
 -- TODO: Here we have a potential information leak
 -- If a card were to say "if another player draws a Province", they would be able to determine information from that

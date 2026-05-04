@@ -56,4 +56,4 @@ interpRandomWithSeed n = runAtomicGenM n . constraintIn
 
 interpRandomGlobal :: Member (Embed IO) r => Sem (RandomGenEff IO: r) a -> Sem r a
 interpRandomGlobal = interpret $ \case
-  Input -> return $ HoldRandom globalStdGen
+  Input -> pure $ HoldRandom globalStdGen

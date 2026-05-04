@@ -37,7 +37,7 @@ data PileConfig t = PileConfig
 justGetStack :: Member Stacks r => Position -> Sem r [Card]
 justGetStack p = do
     mstack <- getStack p
-    maybe undefined return mstack
+    maybe undefined pure mstack
 
 isSupply :: Position -> Maybe CardFace
 isSupply (Supply c) = Just c
@@ -53,7 +53,7 @@ emptySupplies :: Member Stacks r => Sem r [CardFace]
 emptySupplies = do
     cards <- activeSupplies
     emptyPiles <- forM cards (\face -> (\x -> (face, null <$> x)) <$> getStack (Supply face))
-    return . fmap fst . filter ((== Just True) . snd) $ emptyPiles
+    pure . fmap fst . filter ((== Just True) . snd) $ emptyPiles
 
 numEmptySupplies :: Member Stacks r => Sem r Int
 numEmptySupplies = length <$> emptySupplies
@@ -62,7 +62,7 @@ canDraw :: (Member Stacks r) => Player -> Sem r Bool -- TODO: Add to interface?
 canDraw pl = do
   deck <- justGetStack (PlayerCard pl PlayerDeck)
   disc <- justGetStack (PlayerCard pl PlayerDiscardPile)
-  return . not . null $ deck ++ disc
+  pure . not . null $ deck ++ disc
 
 data BoardStateRead m a where
   GetPlayers :: BoardStateRead m (Map Player ())
@@ -75,9 +75,6 @@ data BoardStateRead m a where
   IsGameOver :: BoardStateRead m Bool
 makeSem ''BoardStateRead
 deriving instance Show (BoardStateRead m a)
-
-applyTo :: (Monad m, Traversable t) => (a -> m b) -> m (t a) -> m (t b)
-applyTo f xs = mapM f =<< xs
 
 applyToOthers :: (Member BoardStateRead r) => Player -> (Player -> Sem r a) -> Sem r (Map Player a)
 applyToOthers player f = applyTo f (dupKey . Map.delete player <$> getPlayers)

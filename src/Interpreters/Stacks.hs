@@ -22,7 +22,7 @@ unsafeLookup l = fromJust . Map.lookup l
 refill :: (Member Stacks r, Foldable t) => PileConfig t -> Position -> Sem r ()
 refill (PileConfig fillFrom shuffleOnFill) l = trace "wah" $ do
     case Map.lookup l fillFrom of
-      Nothing -> return ()
+      Nothing -> pure ()
       Just l' -> do
         stackOnto l' l
         when (l `elem` shuffleOnFill) $ shuffleStack l
@@ -50,10 +50,10 @@ interpStacks cfg = interpret $ \case
         let stack1 = unsafeLookup l1 cardMap
         let stack2 = unsafeLookup l2 cardMap
         case stack1 of
-            []                -> return Nothing
+            []                -> pure Nothing
             (x:xs)            -> do
                 put $ Map.insert l1 xs . Map.insert l2 (x:stack2) $ cardMap
-                return $ Just x
+                pure $ Just x
       CardToPos card loc -> do
         cardMap <- get @(Map Position [Card])
         let newMap = fmap (filter (card /=)) cardMap

@@ -38,13 +38,13 @@ interpCardEffects inject = interpCardEffects' . inject
       BlockOne pl _ -> void $ modify (setBlocks pl True)
       Discard pl c -> void $ cardToPos c (PlayerCard pl PlayerDiscardPile)
       TrashCard _ c -> void $ cardToPos c Trash
-      Reveal _ _ -> return () -- Reveal handled elsewhere
+      Reveal _ _ -> pure () -- Reveal handled elsewhere
       TopDeck pl c -> void $ cardToPos c (PlayerCard pl PlayerDeck)
       GainCardTo pl c pos -> do
         mcard <- drawTo (Supply c) (PlayerCard pl pos)
         case mcard of
-          Nothing -> return $ Left EmptySupply
-          Just card -> return $ Right card
+          Nothing -> pure $ Left EmptySupply
+          Just card -> pure $ Right card
 
 -- How do I ensure that "If someone gains a treasure" only fires before someone successfully gains a treasure, and not before
 -- someone fails to gain a treasure, or after someone gains a treasure?
@@ -52,7 +52,7 @@ interpCardEffects inject = interpCardEffects' . inject
 -- How can that possibly fire before theirs does.
 -- Ok, there are two types of reactions, ones that go before and just block, and others that trigger in reaction to events, which
 -- go after.
--- Also, I think reactions can only be activated from someones hand. However, many reactions are returned to the players hand immediately
+-- Also, I think reactions can only be activated from someones hand. However, many reactions are pureed to the players hand immediately
 -- after being put into play.
 -- Oh great, and reactions can be chosen by the player of which to play, in player order.
 -- We need to recursively check for reaction cards after each one is played, too, to update what can be played
@@ -71,12 +71,12 @@ playOneReaction' player ceff ma if_invalid = do
   redacted <- redactReactEvent (reactionEvent ceff ma) player
   mreact <- getPlayerReaction player redacted
   case mreact of
-    Nothing -> return Nothing
+    Nothing -> pure Nothing
     Just card -> do
      moutcome <- doReaction player card (reactionEvent ceff ma)
      case moutcome of
       Left _   -> if_invalid
-      Right outcome -> return $ Just outcome
+      Right outcome -> pure $ Just outcome
 
 playOneReaction :: (Member DoReaction r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinnitial) a -> Maybe a -> Sem r (Maybe ())
 playOneReaction pl ceff ma = fix $ playOneReaction' pl ceff ma
@@ -89,7 +89,7 @@ playerReacts player cardEff = do
   _ <- playerReact player cardEff Nothing -- "before reactions"
   ret <- send (cardEffectrMap cardEff)
   _ <- playerReact player cardEff (Just ret) -- "after reactions"
-  return ret
+  pure ret
 
 injectReaction :: Members '[BoardStateRead, PlayerIO, CardEffects, Obscure] r => Sem r a -> Sem (DoReaction:r) a
 injectReaction program = do
@@ -111,7 +111,7 @@ interpStateRead = interpret $ \case
   GetPlayers -> flip constMap () <$> (all_players <$> get)
   GetVP pl -> do
     playerCards <- join <$> mapM (justGetStack . PlayerCard pl) allPositions
-    return . calculateVP (length playerCards). mconcat . fmap getCardVP $ playerCards
+    pure . calculateVP (length playerCards). mconcat . fmap getCardVP $ playerCards
   GetHand pl -> justGetStack (PlayerCard pl PlayerHand)
   GetDeck pl -> justGetStack (PlayerCard pl PlayerDeck)
   GetTopCard pl -> flip (!?) (1::Int) <$> justGetStack (PlayerCard pl PlayerDeck)
@@ -120,7 +120,7 @@ interpStateRead = interpret $ \case
   IsGameOver -> do
     emptyPiles <- numEmptySupplies
     provinces <- justGetStack (Supply Province)
-    return $ null provinces || emptyPiles >= 3
+    pure $ null provinces || emptyPiles >= 3
 
 interpPlayerIO :: Member DataSerialised r => Sem (PlayerIO : r) a -> Sem r a
 interpPlayerIO = interpret (\eff -> dataOut (encode eff) >> untilJust (has @FromJSON eff decode <$> dataIn))
@@ -128,7 +128,7 @@ interpPlayerIO = interpret (\eff -> dataOut (encode eff) >> untilJust (has @From
 interpPlayerIONoReact :: Member DataSerialised r => Sem (PlayerIO : r) a -> Sem r a
 interpPlayerIONoReact = interpret $ \case
   eff@(SendInfo{}) -> dataOut (encode eff)
-  (GetPlayerReaction{}) -> return Nothing
+  (GetPlayerReaction{}) -> pure Nothing
   eff -> (dataOut (encode eff) >> untilJust (has @FromJSON eff decode <$> dataIn))
 
 serialiseToTerminal :: Member (Embed IO) r => InterpreterFor DataSerialised r
@@ -140,15 +140,15 @@ maybePossible :: Members '[DataSerialised] r => PlayerIO (Sem rin) x -> [x] -> S
 maybePossible eff poss = do
   bstr <- dataIn
   case traceShowId $ decode @Int bstr of
-    Just n -> return $ poss !? n
-    Nothing -> return $ has @FromJSON eff $ decode bstr
+    Just n -> pure $ poss !? n
+    Nothing -> pure $ has @FromJSON eff $ decode bstr
 
 interpPlayerIOChoice :: Members '[ValidResponses, DataSerialised] r => InterpreterFor PlayerIO r
 interpPlayerIOChoice = interpret $ \eff -> do
   dataOut (encode eff)
   possibilities <- getValidResponses (playerIOmapR eff)
   case possibilities of
-    [x] -> return x
+    [x] -> pure x
     _ -> do
       dataOut . LC.pack $ "Possibilities:"
       has @ToJSON eff $ forM_ (zip [0::Int ..] possibilities) (\(x,y) -> dataOut . mappend (LC.pack . show $ x) . encode $ y)

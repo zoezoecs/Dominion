@@ -72,16 +72,16 @@ runObscure = reinterpret $ \case
   GetTempId card -> do
     usedCards <- get
     case Map.lookup card usedCards of
-      Just wah -> return wah
+      Just wah -> pure wah
       Nothing -> do
         newId <- randomUniqueId
         put $ Map.insert card (MkTempId newId) usedCards
-        return (MkTempId newId)
+        pure (MkTempId newId)
 
 mockState :: s -> Sem (State s : r) a -> Sem r a
 mockState s = interpret $ \case
-  Get -> return s
-  Put _ -> return ()
+  Get -> pure s
+  Put _ -> pure ()
 
 runCorrelation :: Member RandomUniqueId r => Sem (Scoped_ Obscure ': (Obscure ': r)) a -> Sem r a
 runCorrelation = mockState mempty .

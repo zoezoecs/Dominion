@@ -37,4 +37,4 @@ redactEvent = \case
     logRedacted pl eff pl2 = do
       secret <- traverse dontRedactCard eff
       public <- traverse doRedactCard eff
-      return $ if pl == pl2 then secret else public
+      pure $ if pl == pl2 then secret else public
