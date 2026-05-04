@@ -4,7 +4,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Effects.Log where
 
-import Polysemy
 import Data.Aeson
 import Data.Aeson.GADT.TH
 import Data.Constraint.Extras

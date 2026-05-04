@@ -130,24 +130,17 @@ otherPlayerAttack _ _ = False
 
 
 
---bandit :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r ()
-bandit :: CardSemantics'
-bandit player _ = void $ do
-  _ <- gainCard player Gold
-  applyToOthers player bandited
+gainToSt :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r, Member Stacks r) => PlayerPosition -> Player -> (CardFace -> Bool) -> Sem r (Either InvalidGain Card)
+gainToSt ppos player cond = do
+  supplies <- activeSupplies
+  cf <- getCardFaceTEMP player (filter cond supplies)
+  gainCardTo player cf ppos
 
-bandited :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r ()
-bandited player = do
-  mcard0 <- getTopNCard player 0
-  mcard1 <- getTopNCard player 1
-  let cards = catMaybes [mcard0, mcard1]
-  forM_ cards (reveal player)
-  let nonCopperTreasure = filter ((/= Copper) . getFace) cards
-  toTrash <- getCardsTEMP player nonCopperTreasure
-  forM_ toTrash (trashCard player)
-  forM_ (cards \\ toTrash) (discard player)
+gainSt :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r, Member Stacks r) => Player -> (CardFace -> Bool) -> Sem r (Either InvalidGain Card)
+gainSt = gainToSt PlayerDiscardPile
 
---witch :: (Member CardEffects r) => Player -> Sem r ()
+
+
 witch :: CardSemantics'
 witch player _ = do
   _ <- drawOnce player
@@ -155,7 +148,6 @@ witch player _ = do
   _ <- applyToOthers player (`gainCard` Curse)
   return ()
 
--- moatPlay :: (Member CardEffects r) => Player -> Sem r ()
 moat :: CardSemantics'
 moat player _ = void $ drawCard player 2
 
@@ -166,13 +158,49 @@ moatReact player card = BeforeReaction (otherPlayerAttack player) moatBlock
       reveal player card
       blockOne player card
 
---councilRoom :: (Member CardEffects r) => Player -> Sem r ()
 councilRoom :: CardSemantics'
 councilRoom player _ = do
   _ <- drawCard player 4
   _ <- modifyBuys 1
   _ <- applyToOthers player drawOnce
   return ()
+
+smithy :: CardSemantics'
+smithy player _ = void $ drawCard player 3
+
+village :: CardSemantics'
+village player _ = void $ drawCard player 1 >> modifyActions 2
+
+throneRoom :: CardSemantics'
+throneRoom player card = void $ do
+  hand <- getHand player
+  mcard <- getMCardTEMP player (delete card hand)
+  forM_ mcard (replicateM 2 . activateCard player)
+
+laboratory :: CardSemantics'
+laboratory player _ = void $ do
+  _ <- modifyActions 1
+  drawCard player 2
+
+festival :: CardSemantics'
+festival _ _ = void $ do
+  _ <- modifyActions 2
+  _ <- modifyBuys 1
+  modifyCurrency 2
+
+market :: CardSemantics'
+market player _ = void $ do
+  _ <- modifyActions 1
+  _ <- modifyBuys 1
+  _ <- modifyCurrency 1
+  drawCard player 1
+
+
+
+ -- To optimise
+-- select (exactly n, up to n, one, maybe one) from hand to (discard/trash/play/topdeck)
+-- you may play it
+-- check top cards on a pile
 
 cellar :: CardSemantics'
 cellar player _ = void $ do
@@ -198,36 +226,6 @@ harbinger player _ = void $ do
     Just card -> cardToPos card (PlayerCard player PlayerDeck)
     Nothing -> return ()
 
-laboratory :: CardSemantics'
-laboratory player _ = void $ do
-  _ <- modifyActions 1
-  drawCard player 2
-
-festival :: CardSemantics'
-festival _ _ = void $ do
-  _ <- modifyActions 2
-  _ <- modifyBuys 1
-  modifyCurrency 2
-
-market :: CardSemantics'
-market player _ = void $ do
-  _ <- modifyActions 1
-  _ <- modifyBuys 1
-  _ <- modifyCurrency 1
-  drawCard player 1
-
-smithy :: CardSemantics'
-smithy player _ = void $ drawCard player 3
-
-village :: CardSemantics'
-village player _ = void $ drawCard player 1 >> modifyActions 2
-
-throneRoom :: CardSemantics'
-throneRoom player card = void $ do
-  hand <- getHand player
-  mcard <- getMCardTEMP player (delete card hand)
-  forM_ mcard (replicateM 2 . activateCard player)
-
 militia :: CardSemantics'
 militia player _ = void $ do
   _ <- modifyCurrency 2
@@ -241,7 +239,7 @@ vassal player _ = void $ do
   mcard <- drawTo (PlayerCard player PlayerDeck) (PlayerCard player PlayerDiscardPile)
   case mcard of
     Nothing -> return ()
-    Just card -> when (CardAction `elem` getTypes card) $ void $ do -- reveal card?
+    Just card -> when (CardAction `elem` getTypes card) $ void $ do
       mcard2 <- getMCardTEMP player [card]
       traverse (activateCard player) mcard2
 
@@ -257,10 +255,8 @@ poacher player _ = void $ do
 
 workshop :: CardSemantics'
 workshop player _ = void $ do
-  supplies <- activeSupplies
   let canGain face = getFaceCost face <= 4
-  cf <- getCardFaceTEMP player (filter canGain supplies)
-  outcome <- gainCard player cf -- error handling?
+  outcome <- gainSt player canGain
   return ()
 
 bureaucrat :: CardSemantics'
@@ -288,10 +284,8 @@ remodel player _ = void $ do
   hand <- getHand player
   toTrash <- getCardTEMP player hand
   trashCard player toTrash
-  supplies <- activeSupplies -- NOTE: Do we care to only return the nonempty stacks?
   let canGain face = getFaceCost face <= (getCost toTrash + 2)
-  toGain <- getCardFaceTEMP player (filter canGain supplies)
-  outcome <- gainCard player toGain -- Error handling?
+  outcome <- gainSt player canGain
   return ()
 
 mine :: CardSemantics'
@@ -308,10 +302,8 @@ mine player _ = do
 
 artisan :: CardSemantics'
 artisan player _ = void $ do
-  supplies <- activeSupplies -- NOTE: Do we care to only return the nonempty stacks?
   let canGain face = getFaceCost face <= 5
-  cf <- getCardFaceTEMP player (filter canGain supplies)
-  outcome <- gainCardTo player cf PlayerHand
+  outcome <- gainToSt PlayerHand player canGain
   hand <- getHand player
   toTopdeck <- getCardTEMP player hand
   cardToPos toTopdeck (PlayerCard player PlayerDeck)
@@ -323,7 +315,7 @@ library player _ = void $ do
 
 libraryDraw :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r, Member Stacks r) => Player -> Sem r (Maybe Card)
 libraryDraw player = do
-  mcard :: Maybe Card <- mTop <$> getStack (PlayerCard player PlayerDeck)
+  mcard  <- mTop <$> getStack (PlayerCard player PlayerDeck) -- also wrong, won't reshuffle if the deck empties
   case mcard of
     Nothing -> return Nothing
     Just card -> do
@@ -350,3 +342,19 @@ merchant player _ = do
   _ <- drawOnce player
   _ <- modifyActions 1
   undefined
+
+bandit :: CardSemantics'
+bandit player _ = void $ do
+  _ <- gainCard player Gold
+  applyToOthers player bandited
+
+bandited :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r ()
+bandited player = do
+  mcard0 <- getTopNCard player 0
+  mcard1 <- getTopNCard player 1 -- TODO: This or other approach?
+  let cards = catMaybes [mcard0, mcard1]
+  forM_ cards (reveal player)
+  let nonCopperTreasure = filter ((/= Copper) . getFace) cards
+  toTrash <- if null nonCopperTreasure then return [] else singleton <$> getCardTEMP player nonCopperTreasure
+  forM_ toTrash (trashCard player)
+  forM_ (cards \\ toTrash) (discard player)

@@ -97,12 +97,12 @@ mainTest = main (MkPlayer <$> [1..3]) [Bandit, Moat]
 
 -- TODO: 
 -- Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions? Relevant for player logging and especially reactions.
--- See if I can fix the effect hierarchy
+-- See if I can fix the effect hierarchy (stacks, boardstateread, other things?)
 -- We need interactive state queries lol
--- Game flow choices like whether players have to play or react to things or not should be encoded in the interfaces
 -- Check card semantics
 -- Refactoring for Cards common functionality
 -- PlayerIO interface for selecting cards
+-- ASK RIA ABOUT HOW TO TEST RANDOMNESS
 
 -- Stacks and bad locations
 -- Rules validation locations and coverage (c.f. Stacks and CardEffects impossible effect defaulting to signalled ignore)

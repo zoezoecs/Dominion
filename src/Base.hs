@@ -4,12 +4,18 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
 
+applyTo :: (Monad m, Traversable t) => (a -> m b) -> m (t a) -> m (t b)
+applyTo f xs = mapM f =<< xs
+
 dupKey :: Map k () -> Map k k
 dupKey = Map.mapWithKey const
 
 constMap :: Ord k => [k] -> a -> Map k a
 constMap keys a = Map.fromList $ map (flip (,) a) keys
 
+
+fanout :: Applicative m => (c -> m a) -> (c -> m b) -> (c -> m (a,b))
+fanout cma cmb c = liftA2 (,) (cma c) (cmb c)
 
 {-# INLINABLE (!?) #-}
 (!?) :: (Ord a1, Num a1, Foldable t) => t a2 -> a1 -> Maybe a2

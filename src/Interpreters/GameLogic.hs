@@ -7,6 +7,7 @@ import Control.Monad
 import Data.Maybe
 import Data.List
 
+import Base
 import Types
 import Effects
 import Cards
@@ -108,9 +109,6 @@ interpGameRules = interpret $ \case
                   | otherwise                = Right has_reac
             return result
 
-gah :: Applicative m => (c -> m a) -> (c -> m b) -> (c -> m (a,b))
-gah cma cmb c = liftA2 (,) (cma c) (cmb c)
-
 deidentify :: PotentiallyObscured -> Card
 deidentify = undefined
 
@@ -118,15 +116,15 @@ runValidResponses :: Members '[BoardStateRead, Stacks, GameRules] r => Interpret
 runValidResponses = interpret $ \case
   GetValidResponses (GetAction pl) -> do
     handCards <- getHand pl
-    cardSuccess <- traverse (gah return (canAct pl)) handCards
+    cardSuccess <- traverse (fanout return (canAct pl)) handCards
     return $ Nothing:[Just c | (c,Right _) <- cardSuccess]
   GetValidResponses (GetPlayTreasure pl) -> do
     handCards <- getHand pl
-    cardSuccess <- traverse (gah return (canTreasure pl)) handCards
+    cardSuccess <- traverse (fanout return (canTreasure pl)) handCards
     return $ Nothing:[Just c | (c,Right _) <- cardSuccess]
   GetValidResponses (GetBuy pl) -> do
     potentialBuys <- activeSupplies
-    cardSuccess <- traverse (gah return (canBuy pl)) potentialBuys
+    cardSuccess <- traverse (fanout return (canBuy pl)) potentialBuys
     return $ Nothing:[Just c | (c,Right _) <- cardSuccess]
   -- GetValidResponses (GetTrashAny _ cards) -> return $ subsequences cards
   -- GetValidResponses (GetTrashExactlyN _ n cards) -> return $ filter (\x -> length x == n) (subsequences cards)
