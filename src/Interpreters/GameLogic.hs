@@ -133,6 +133,8 @@ runValidResponses = interpret $ \case
   GetValidResponses (GetCardTEMP _ cards) -> pure cards
   GetValidResponses (GetCardsTEMP _ cards) -> pure $ subsequences cards
   GetValidResponses (GetMCardTEMP _ cards) -> pure $ Nothing:(Just <$> cards)
+  GetValidResponses (GetNCardsTEMP _ n cards) -> pure $ filter ((==n) . length) (subsequences cards)
+  GetValidResponses (GetUpToNCardsTEMP _ n cards) -> pure $ filter ((<=n) . length) (subsequences cards)
   GetValidResponses (SendStack _ _) -> pure [()]
   GetValidResponses (GetCardFaceTEMP _ faces) -> pure faces
   --  do

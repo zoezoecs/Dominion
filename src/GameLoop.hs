@@ -9,8 +9,6 @@ import qualified Data.Map as Map
 
 import Types
 import Effects
--- discardHand' :: (Member CardEffects r, Member BoardStateRead r) => Player -> Sem r ()
--- discardHand' player = void $ applyTo (discard player) (getHand player)
 
 -- Prompt the player to act, Maybe signals choosing to not act
 playOneAction' :: (Member GameLoop r, Member PlayerIO r) => Player -> Sem r (Maybe Card) -> Sem r (Maybe Card)

@@ -58,6 +58,9 @@ emptySupplies = do
 numEmptySupplies :: Member Stacks r => Sem r Int
 numEmptySupplies = length <$> emptySupplies
 
+putPlay :: Member Stacks r => Player -> Card -> Sem r ()
+putPlay pl c = cardToPos c (PlayerCard pl PlayerInPlay)
+
 canDraw :: (Member Stacks r) => Player -> Sem r Bool -- TODO: Add to interface?
 canDraw pl = do
   deck <- justGetStack (PlayerCard pl PlayerDeck)
@@ -168,7 +171,7 @@ data Correlation m a where
   MkCorrelation :: m a -> Correlation m a
 makeSem ''Correlation
 
-type CardSemantics' = forall r. Members [BoardStateRead, CardEffects, Stacks, PlayerIO] r => Player -> Card -> Sem r ()
+type CardSemantics' = forall r. Members [BoardStateRead, CardEffects, Stacks, PlayerIO] r => Player -> Card -> Sem r () -- TODO: Cards shouldn't have Stacks access
 type CardReactionSemantics' = forall r. (Members '[CardEffects] r) => Player -> Card -> Reaction (Sem r) ()
 newtype CardSemantics = CardSemantics {getSemantics :: CardSemantics'}
 newtype CardReactionSemantics = CardReactionSemantics {getReactionSemantics :: CardReactionSemantics'}

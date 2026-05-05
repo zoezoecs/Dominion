@@ -22,13 +22,6 @@ import Effects.Log
 import Internal.TH
 import Data.Coerce
 
--- TODO: Coerce and newtypes?
-evAnsReaction :: EventAnswer Maybe card -> ReactionEvent card
-evAnsReaction (EventAnswer e x) = ReactionEvent (EventAnswer e x)
-
-reactionEvAns :: ReactionEvent card -> EventAnswer Maybe card
-reactionEvAns (ReactionEvent (EventAnswer e x)) = EventAnswer e x
-
 newtype ReactionEvent card = ReactionEvent {getReactionEvent :: EventAnswer Maybe card}
 
 reactionEvent :: forall {k} {card} {m :: k} {a}. CardEffects' card m a -> Maybe a -> ReactionEvent card
@@ -68,8 +61,10 @@ data PlayerIO m a where
   GetBuy :: Player -> PlayerIO m (Maybe CardFace)
   GetCardFaceTEMP :: Player -> [CardFace] -> PlayerIO m CardFace
   GetCardTEMP :: Player -> [Card] -> PlayerIO m Card
-  GetMCardTEMP :: Player -> [Card] -> PlayerIO m (Maybe Card) -- Tbh these should not have [Card] args anyways
+  GetMCardTEMP :: Player -> [Card] -> PlayerIO m (Maybe Card)
   GetCardsTEMP :: Player -> [Card] -> PlayerIO m [Card]
+  GetNCardsTEMP :: Player -> Int -> [Card] -> PlayerIO m [Card]
+  GetUpToNCardsTEMP :: Player -> Int -> [Card] -> PlayerIO m [Card]
   SendInfo :: Player -> Log PotentiallyObscured m a -> PlayerIO m () -- Monomorphised card for less GHC extensions
   SendStack :: PlayerPosition -> [Card] -> PlayerIO m ()
   GetPlayerReaction :: Player -> ReactionEvent PotentiallyObscured -> PlayerIO m (Maybe Card)

@@ -196,12 +196,18 @@ market player _ = void $ do
   drawCard player 1
 
 
+workshop :: CardSemantics'
+workshop player _ = void $ do
+  let canGain face = getFaceCost face <= 4
+  outcome <- gainSt player canGain
+  pure ()
 
- -- To optimise
+-- TODO: Make ergonomic to express:
 -- select (exactly n, up to n, one, maybe one) from hand to (discard/trash/play/topdeck)
 -- you may play it
 -- check top cards on a pile
 
+-- Just optimise picking cards from hands
 cellar :: CardSemantics'
 cellar player _ = void $ do
   _ <- modifyActions 1
@@ -214,48 +220,30 @@ chapel :: CardSemantics'
 chapel player _ = void $ do
   _ <- modifyActions 1
   hand <- getHand player
-  cards <- getCardsTEMP player hand -- up to 4
+  cards <- getUpToNCardsTEMP player 4 hand
   forM_ cards (trashCard player)
 
-harbinger :: CardSemantics'
-harbinger player _ = void $ do
-  discards <- getDiscardPile player
-  sendStack PlayerDiscardPile discards
-  mcard <- getMCardTEMP player discards
-  case mcard of
-    Just card -> cardToPos card (PlayerCard player PlayerDeck)
-    Nothing -> pure ()
-
-militia :: CardSemantics'
-militia player _ = void $ do
-  _ <- modifyCurrency 2
+moneylender :: CardSemantics'
+moneylender player _ = do
   hand <- getHand player
-  keep_cards <- getCardsTEMP player hand -- keep 3
-  forM_ (hand \\ keep_cards) (discard player)
+  mcopper <- getMCardTEMP player (filter (isFace Copper) hand)
+  forM_ mcopper (\c -> trashCard player c >> modifyCurrency 3)
 
-vassal :: CardSemantics'
-vassal player _ = void $ do
-  _ <- modifyCurrency 2
-  mcard <- drawTo (PlayerCard player PlayerDeck) (PlayerCard player PlayerDiscardPile)
-  case mcard of
-    Nothing -> pure ()
-    Just card -> when (CardAction `elem` getTypes card) $ void $ do
-      mcard2 <- getMCardTEMP player [card]
-      traverse (activateCard player) mcard2
-
-poacher :: CardSemantics'
-poacher player _ = void $ do
-  _ <- modifyActions 1
-  _ <- modifyCurrency 1
-  _ <- drawCard player 1
+mine :: CardSemantics'
+mine player _ = do
   hand <- getHand player
-  empty_supplies <- numEmptySupplies
-  to_discard <- getCardsTEMP player hand -- TODO: Discard n
-  forM_ to_discard (discard player)
+  mtrash <- getMCardTEMP player (filter isTreasure hand)
+  let canGain c face = getFaceCost face <= (getCost c + 3) && isTreasureF face
+  forM_ mtrash (\c -> do
+    trashCard player c
+    gainSt player (canGain c))
 
-workshop :: CardSemantics'
-workshop player _ = void $ do
-  let canGain face = getFaceCost face <= 4
+remodel :: CardSemantics'
+remodel player _ = void $ do
+  hand <- getHand player
+  toTrash <- getCardTEMP player hand
+  trashCard player toTrash
+  let canGain face = getFaceCost face <= (getCost toTrash + 2)
   outcome <- gainSt player canGain
   pure ()
 
@@ -268,45 +256,56 @@ bureaucrated :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO 
 bureaucrated player = do
   hand <- getHand player
   let victories = filter isVictory hand
-  if null victories then forM_ hand (reveal player) else do
-    toShow <- getCardTEMP player victories
-    reveal player toShow
-    cardToPos toShow (PlayerCard player PlayerDeck)
+  case null victories of
+    True -> forM_ hand (reveal player)
+    False -> do
+      toShow <- getCardTEMP player victories
+      reveal player toShow
+      topDeck player toShow
 
-moneylender :: CardSemantics'
-moneylender player _ = do
-  hand <- getHand player
-  mcopper <- getMCardTEMP player (filter (isFace Copper) hand)
-  forM_ mcopper (\c -> trashCard player c >> modifyCurrency 3)
-
-remodel :: CardSemantics'
-remodel player _ = void $ do
-  hand <- getHand player
-  toTrash <- getCardTEMP player hand
-  trashCard player toTrash
-  let canGain face = getFaceCost face <= (getCost toTrash + 2)
-  outcome <- gainSt player canGain
-  pure ()
-
-mine :: CardSemantics'
-mine player _ = do
-  hand <- getHand player
-  mtrash <- getMCardTEMP player (filter isTreasure hand)
-  supplies <- activeSupplies -- NOTE: Do we care to only pure the nonempty stacks?
-  let canGain c face = getFaceCost face <= (getCost c + 3)
-  forM_ mtrash (\c -> do
-    trashCard player c
-    getToGain <- getCardFaceTEMP player (filter (\x -> canGain c x && isTreasureF x) supplies)
-    outcome <- gainCard player getToGain
-    pure ())
-
+-- Get from hand to do something else
 artisan :: CardSemantics'
 artisan player _ = void $ do
   let canGain face = getFaceCost face <= 5
   outcome <- gainToSt PlayerHand player canGain
   hand <- getHand player
   toTopdeck <- getCardTEMP player hand
-  cardToPos toTopdeck (PlayerCard player PlayerDeck)
+  topDeck player toTopdeck
+
+-- Harder:
+poacher :: CardSemantics'
+poacher player _ = void $ do
+  _ <- modifyActions 1
+  _ <- modifyCurrency 1
+  _ <- drawCard player 1
+  hand <- getHand player
+  empty_supplies <- numEmptySupplies
+  to_discard <- getNCardsTEMP player empty_supplies hand
+  forM_ to_discard (discard player)
+
+harbinger :: CardSemantics'
+harbinger player _ = void $ do
+  discards <- getDiscardPile player
+  sendStack PlayerDiscardPile discards
+  mcard <- getMCardTEMP player discards
+  forM_ mcard (topDeck player)
+
+militia :: CardSemantics'
+militia player _ = void $ do
+  _ <- modifyCurrency 2
+  hand <- getHand player
+  keep_cards <- getNCardsTEMP player 3 hand
+  forM_ (hand \\ keep_cards) (discard player)
+
+vassal :: CardSemantics'
+vassal player _ = void $ do
+  _ <- modifyCurrency 2
+  mcard <- getTopCard player
+  case mcard of
+    Nothing -> pure ()
+    Just card -> discard player card >> when (CardAction `elem` getTypes card) (void $ do
+      mcard2 <- getMCardTEMP player [card]
+      traverse (activateCard player) mcard2)
 
 library :: CardSemantics'
 library player _ = void $ do
@@ -315,15 +314,15 @@ library player _ = void $ do
 
 libraryDraw :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r, Member Stacks r) => Player -> Sem r (Maybe Card)
 libraryDraw player = do
-  mcard  <- mTop <$> getStack (PlayerCard player PlayerDeck) -- also wrong, won't reshuffle if the deck empties
+  mcard  <- mTop <$> getStack (PlayerCard player PlayerDeck) -- TODO: also wrong, won't reshuffle if the deck empties
   case mcard of
     Nothing -> pure Nothing
     Just card -> do
       toSkip <- getMCardTEMP player (filter isAction [card])
       case toSkip of
         Nothing -> drawOnce player
-        Just skip -> cardToPos skip (PlayerCard player PlayerInPlay) >> pure (Just skip)
-  
+        Just skip -> putPlay player skip >> pure (Just skip)
+
 sentry :: CardSemantics'
 sentry player _ = do
   _ <- drawCard player 1
@@ -335,7 +334,7 @@ sentry player _ = do
   anyOrder <- getCardsTEMP player ((topTwo \\ toTrash) \\ toDiscard)
   forM_ toTrash (trashCard player)
   forM_ toDiscard (discard player)
-  forM_ anyOrder (`cardToPos` PlayerCard player PlayerDeck)
+  forM_ anyOrder (topDeck player)
 
 merchant :: CardSemantics'
 merchant player _ = do
@@ -351,7 +350,7 @@ bandit player _ = void $ do
 bandited :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r ()
 bandited player = do
   mcard0 <- getTopNCard player 0
-  mcard1 <- getTopNCard player 1 -- TODO: This or other approach?
+  mcard1 <- getTopNCard player 1
   let cards = catMaybes [mcard0, mcard1]
   forM_ cards (reveal player)
   let nonCopperTreasure = filter ((/= Copper) . getFace) cards

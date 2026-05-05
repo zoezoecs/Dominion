@@ -63,7 +63,7 @@ interpCardEffects inject = interpCardEffects' . inject
 -- after the event has occurred
 
 redactReactEvent :: Member Obscure r => ReactionEvent Card -> Player -> Sem r (ReactionEvent PotentiallyObscured)
-redactReactEvent ev pl = evAnsReaction <$> redactEvent (reactionEvAns ev) pl
+redactReactEvent ev pl = ReactionEvent <$> redactEvent (getReactionEvent ev) pl
 
 -- Prompt the player to react, Maybe signals choosing to not buy
 playOneReaction' :: (Member DoReaction r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r (Maybe ()) -> Sem r (Maybe ())
@@ -105,7 +105,6 @@ calculateVP total_cards (VPS vps) = sum $ calcValue <$> vps
     calcValue PlainVP = 1
     calcValue GardensVP = div total_cards 10
 
--- TODO: Fix this
 interpStateRead :: Members '[Stacks, State GameState] r => Sem (BoardStateRead : r) a -> Sem r a
 interpStateRead = interpret $ \case
   GetPlayers -> flip constMap () <$> (all_players <$> get)

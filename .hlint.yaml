@@ -2,8 +2,8 @@
 # For a how-to-use and the latest version of this file go to:
 # https://github.com/NorfairKing/haskell-dangerous-functions/
 
-- ignore: { name: "Use unless" }
 - ignore: { name: "Use tuple-section" }
+- ignore: { name: Use if }
 
 - functions:
   - {name: unsafeDupablePerformIO, within: []} # Unsafe

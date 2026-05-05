@@ -100,11 +100,15 @@ mainTest = main (MkPlayer <$> [1..3]) [Bandit, Moat]
 -- See if I can fix the effect hierarchy (stacks, boardstateread, other things?)
 -- We need interactive state queries lol
 -- Check card semantics
--- Refactoring for Cards common functionality
--- PlayerIO interface for selecting cards
+-- Refactoring for Cards common functionality and fix looking at top n cards
+-- Prune useless effect constructors and add useful ones
 -- ASK RIA ABOUT HOW TO TEST RANDOMNESS
+-- Possible reactions
+-- attacks
+-- Current players turn readstate
+-- Cards shouldn't get stacks
 
--- Stacks and bad locations
+-- Stacks and bad locations. Consider making a safer wrapper.
 -- Rules validation locations and coverage (c.f. Stacks and CardEffects impossible effect defaulting to signalled ignore)
 
 -- Splitting interpreter logic correctly
