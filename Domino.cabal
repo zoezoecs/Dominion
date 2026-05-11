@@ -73,30 +73,24 @@ library
     import:           warnings, polysemysettings
 
     -- Modules exported by the library.
-    exposed-modules:  MyLib
+    exposed-modules:  MyLib, Effects, Interpreters, Types, TypesSecret, Data, Cards
 
     -- Modules included in this library but not exported.
     other-modules: 
                    Internal.TH,
                    Internal.TestTH,
                    Base,
-                   Types,
-                   TypesSecret,
-                   Effects,
                    Effects.Effects,
                    Effects.CardEffects,
                    Effects.Log,
                    Effects.PlayerIO,
                    GameLoop, 
-                   Interpreters,
                    Interpreters.Random,
                    Interpreters.Log,
                    Interpreters.Stacks,
                    Interpreters.DoRedact,
                    Interpreters.GameLogic,
                    Interpreters.Other,
-                   Cards,
-                   Data,
                    Playing.HigherOrder,
                    Playing.InterpretIntercept,
                    Playing.RandomImpl,
@@ -182,4 +176,12 @@ test-suite Domino-test
     -- Test dependencies.
     build-depends:
         base ^>=4.18.2.1,
-        Domino
+        Domino,
+        polysemy,
+        containers,
+        monad-loops^>=0.4.3,
+        vector,
+        statistics,
+        QuickCheck,
+        aeson,
+        quickcheck-classes,
