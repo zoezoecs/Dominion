@@ -29,13 +29,31 @@ data InvalidReaction = NoCard | ConditionNotMet | NoReaction deriving (Eq, Ord, 
 
 data PlayerPosition = PlayerDeck | PlayerDiscardPile | PlayerHand | PlayerInPlay | PlayerSetAside deriving (Eq, Ord, Show, Generic)
 
-data VictoryPointsType = PlainVP | GardensVP deriving (Eq, Ord, Show, Generic)
-newtype VictoryPoints = VPS [VictoryPointsType] deriving (Eq, Ord, Show, Generic)
-deriving via [VictoryPointsType] instance Semigroup VictoryPoints
-deriving via [VictoryPointsType] instance Monoid VictoryPoints
+-- This wouldn't actually implement merchant semantics
+data CurrencyPoints = CurrencyPoints {getPlainCurrency :: Int, getMerchantCurrency :: Int} deriving (Eq, Ord, Show, Generic)
+instance Semigroup CurrencyPoints where
+    CurrencyPoints n1 m1 <> CurrencyPoints n2 m2 = CurrencyPoints (n1 + n2) (m1 + m2)
+instance Monoid CurrencyPoints where
+    mempty = CurrencyPoints 0 0
+
+plainCurrency :: Int -> CurrencyPoints
+plainCurrency n = CurrencyPoints n 0
+
+data VictoryPoints = VictoryPoints {getPlainVP :: Int, getGardensVP :: Int} deriving (Eq, Ord, Show, Generic)
+instance Semigroup VictoryPoints where
+    VictoryPoints n1 m1 <> VictoryPoints n2 m2 = VictoryPoints (n1 + n2) (m1 + m2)
+instance Monoid VictoryPoints where
+    mempty = VictoryPoints 0 0
+-- data VictoryPointsType = PlainVP | GardensVP deriving (Eq, Ord, Show, Generic)
+-- newtype VictoryPoints = VPS [VictoryPointsType] deriving (Eq, Ord, Show, Generic)
+-- deriving via [VictoryPointsType] instance Semigroup VictoryPoints
+-- deriving via [VictoryPointsType] instance Monoid VictoryPoints
 
 plainVP :: Int -> VictoryPoints
-plainVP n = VPS $ replicate n PlainVP
+plainVP n = VictoryPoints n 0
+
+gardensVP :: Int -> VictoryPoints
+gardensVP = VictoryPoints 0
 
 -- Note: Kingdom vs non-kingdom cards aren't separated structurally.
 data Position = PlayerCard Player PlayerPosition | Supply CardFace | Trash deriving (Eq, Ord, Show, Generic)

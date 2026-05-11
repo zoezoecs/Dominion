@@ -86,4 +86,4 @@ mockState s = interpret $ \case
 runCorrelation :: Member RandomUniqueId r => Sem (Scoped_ Obscure ': (Obscure ': r)) a -> Sem r a
 runCorrelation = mockState mempty .
                  runObscure .
-                 runScopedNew @() (const $ evalState mempty. subsume_ . runObscure)
+                 runScopedNew @() (const $ evalState mempty . subsume_ . runObscure)

@@ -31,7 +31,7 @@ getFaceInfo Vassal      = FaceInfo (plainVP 0) Nothing 3 [CardAction] Nothing (J
 getFaceInfo Village     = FaceInfo (plainVP 0) Nothing 3 [CardAction] Nothing (Just $ CardSemantics village)
 getFaceInfo Workshop    = FaceInfo (plainVP 0) Nothing 3 [CardAction] Nothing (Just $ CardSemantics workshop)
 getFaceInfo Bureaucrat  = FaceInfo (plainVP 0) Nothing 4 [CardAction, CardAttack] Nothing (Just $ CardSemantics bureaucrat)
-getFaceInfo Gardens     = FaceInfo (VPS [GardensVP]) Nothing 4 [CardVictory] Nothing Nothing
+getFaceInfo Gardens     = FaceInfo (gardensVP 1) Nothing 4 [CardVictory] Nothing Nothing
 getFaceInfo Militia     = FaceInfo (plainVP 0) Nothing 4 [CardAction, CardAttack] Nothing (Just $ CardSemantics militia)
 getFaceInfo Moneylender = FaceInfo (plainVP 0) Nothing 4 [CardAction] Nothing (Just $ CardSemantics moneylender)
 getFaceInfo Poacher     = FaceInfo (plainVP 0) Nothing 4 [CardAction] Nothing (Just $ CardSemantics poacher)
@@ -247,12 +247,12 @@ remodel player _ = void $ do
   outcome <- gainSt player canGain
   pure ()
 
-bureaucrat :: CardSemantics'
+bureaucrat :: CardSemantics' -- SCOPED
 bureaucrat player _ = void $ do
   _ <- gainCardTo player Silver PlayerDeck
   applyToOthers player bureaucrated
 
-bureaucrated :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r, Member Stacks r) => Player -> Sem r ()
+bureaucrated :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r ()
 bureaucrated player = do
   hand <- getHand player
   let victories = filter isVictory hand
@@ -283,7 +283,7 @@ poacher player _ = void $ do
   to_discard <- getNCardsTEMP player empty_supplies hand
   forM_ to_discard (discard player)
 
-harbinger :: CardSemantics'
+harbinger :: CardSemantics' -- SCOPED
 harbinger player _ = void $ do
   discards <- getDiscardPile player
   sendStack PlayerDiscardPile discards
@@ -297,7 +297,7 @@ militia player _ = void $ do
   keep_cards <- getNCardsTEMP player 3 hand
   forM_ (hand \\ keep_cards) (discard player)
 
-vassal :: CardSemantics'
+vassal :: CardSemantics' -- SCOPED
 vassal player _ = void $ do
   _ <- modifyCurrency 2
   mcard <- getTopCard player
@@ -323,12 +323,13 @@ libraryDraw player = do
         Nothing -> drawOnce player
         Just skip -> putPlay player skip >> pure (Just skip)
 
-sentry :: CardSemantics'
+sentry :: CardSemantics' -- SCOPED
 sentry player _ = do
   _ <- drawCard player 1
   _ <- modifyActions 1
-  deck <- getStack (PlayerCard player PlayerDeck)
-  let topTwo = take 2 . concat $ deck -- TODO: Incorrect. Should draw from discard if needed, and the code for this should be somewhere else.  Ensure n?
+  mcard0 <- getTopNCard player 0
+  mcard1 <- getTopNCard player 1
+  let topTwo = catMaybes [mcard0, mcard1] -- TODO: Incorrect. Should draw from discard if needed, and the code for this should be somewhere else.  Ensure n?
   toTrash <- getCardsTEMP player topTwo
   toDiscard <- getCardsTEMP player (topTwo \\ toTrash)
   anyOrder <- getCardsTEMP player ((topTwo \\ toTrash) \\ toDiscard)

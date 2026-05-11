@@ -99,11 +99,7 @@ injectReaction program = do
   appEndo (foldMap wah players) (raise program)
 
 calculateVP :: Int -> VictoryPoints -> Int
-calculateVP total_cards (VPS vps) = sum $ calcValue <$> vps
-  where
-    calcValue :: VictoryPointsType -> Int
-    calcValue PlainVP = 1
-    calcValue GardensVP = div total_cards 10
+calculateVP total_cards (VictoryPoints plain gardens) = plain + gardens * div total_cards 10
 
 interpStateRead :: Members '[Stacks, State GameState] r => Sem (BoardStateRead : r) a -> Sem r a
 interpStateRead = interpret $ \case
@@ -113,7 +109,7 @@ interpStateRead = interpret $ \case
     pure . calculateVP (length playerCards). mconcat . fmap getCardVP $ playerCards
   GetHand pl -> justGetStack (PlayerCard pl PlayerHand)
   GetDeck pl -> justGetStack (PlayerCard pl PlayerDeck)
-  GetTopCard pl -> flip (!?) (1::Int) <$> justGetStack (PlayerCard pl PlayerDeck)
+  GetTopCard pl -> flip (!?) (0::Int) <$> justGetStack (PlayerCard pl PlayerDeck)
   GetTopNCard pl n -> flip (!?) n <$> justGetStack (PlayerCard pl PlayerDeck)
   GetDiscardPile pl -> justGetStack (PlayerCard pl PlayerDiscardPile)
   IsGameOver -> do

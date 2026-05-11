@@ -105,12 +105,16 @@ interpGameRules = interpret $ \case
                       _ -> False
             let result
                   | card `notElem` handCards = Left NoCard
-                  | cond_true                = Left ConditionNotMet
+                  | not cond_true            = Left ConditionNotMet
                   | otherwise                = Right has_reac
             pure result
 
+lookupTempId :: TempId -> Card
+lookupTempId = undefined
+
 deidentify :: PotentiallyObscured -> Card
-deidentify = undefined
+deidentify (PObscured (Left (c,_))) = c
+deidentify (PObscured (Right (Obscured tid))) = lookupTempId tid
 
 runValidResponses :: Members '[BoardStateRead, Stacks, GameRules] r => InterpreterFor ValidResponses r
 runValidResponses = interpret $ \case
@@ -129,7 +133,10 @@ runValidResponses = interpret $ \case
   -- GetValidResponses (GetTrashAny _ cards) -> pure $ subsequences cards
   -- GetValidResponses (GetTrashExactlyN _ n cards) -> pure $ filter (\x -> length x == n) (subsequences cards)
   GetValidResponses (SendInfo _ _) -> pure [()]
-  GetValidResponses (GetPlayerReaction _ _) -> pure [Nothing] -- TODO: Fix
+  GetValidResponses (GetPlayerReaction pl re) -> do
+    handCards <- getHand pl
+    cardSuccess <- traverse (fanout pure (\c -> canReact pl c (fmap deidentify re))) handCards
+    pure $ Nothing:[Just c | (c,Right _) <- cardSuccess]
   GetValidResponses (GetCardTEMP _ cards) -> pure cards
   GetValidResponses (GetCardsTEMP _ cards) -> pure $ subsequences cards
   GetValidResponses (GetMCardTEMP _ cards) -> pure $ Nothing:(Just <$> cards)
@@ -137,11 +144,7 @@ runValidResponses = interpret $ \case
   GetValidResponses (GetUpToNCardsTEMP _ n cards) -> pure $ filter ((<=n) . length) (subsequences cards)
   GetValidResponses (SendStack _ _) -> pure [()]
   GetValidResponses (GetCardFaceTEMP _ faces) -> pure faces
-  --  do
-  --  handCards <- getHand pl
-  --  cardSuccess <- traverse (gah pure (\c -> canReact pl c (fmap deidentify reac))) handCards
-  --  pure $ Nothing:[Just c | (c,Right _) <- cardSuccess]
 
--- TODO: Here we have a potential information leak
+-- Here we have a potential information leak
 -- If a card were to say "if another player draws a Province", they would be able to determine information from that
 -- But it seems bad to look up the obscured card.

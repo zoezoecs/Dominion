@@ -70,22 +70,27 @@ main :: [Player] -> [CardFace] -> IO ()
 main pl cf = runM .
              serialiseToTerminal .
              -- interpPlayerIO .
+
              interpRandomWithSeed 4 . -- interpRandomGlobal
              interpRandomShuffle .
              runRandomUniqueId .
+
              evalState @(Map Position [Card]) (initStacks pl cf) .
              interpStacks (stacksConfig pl).
              evalState @GameState (initGS pl) .
              traceState .
              interpStateRead .
+
              -- runOutputList .
              runCorrelation . 
              interpGameRules .
              runValidResponses .
+
              interpPlayerIOChoice .
              logPlayerToPlayerIO . 
              -- logPlayerToString @PotentiallyObscured .
              logToPlayerLog .
+
              interpCardEffects injecting. -- TODO: Check that the reaction to reaction semantics are correct
              interpGameLoop .
              logTurn 
@@ -96,21 +101,43 @@ mainTest :: IO ()
 mainTest = main (MkPlayer <$> [1..3]) [Bandit, Moat]
 
 -- TODO: 
--- Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions? Relevant for player logging and especially reactions.
--- See if I can fix the effect hierarchy (stacks, boardstateread, other things?)
--- We need interactive state queries lol
--- Check card semantics
--- Refactoring for Cards common functionality and fix looking at top n cards
--- Prune useless effect constructors and add useful ones
--- ASK RIA ABOUT HOW TO TEST RANDOMNESS
--- Possible reactions
--- attacks
--- Current players turn readstate
--- Cards shouldn't get stacks
+-- Correctness bugs, not high priority:
+--   Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions? Relevant for player logging and especially reactions.
+--   Fix looking at top n cards with drawing
+--   Reactions begin relative to current player
+--   Consider rules validation locations and coverage (c.f. Stacks and CardEffects impossible effect defaulting to signalled ignore)
+--   Implement scoped for the cards that use it
 
--- Stacks and bad locations. Consider making a safer wrapper.
--- Rules validation locations and coverage (c.f. Stacks and CardEffects impossible effect defaulting to signalled ignore)
+-- Correctness bugs, high priority
+--   Defending against attacks
+--   Implement Merchant
+--   Possible reactions
 
--- Splitting interpreter logic correctly
--- Tests
--- Criteria for success: No crashes, no exceptions, productive, no infinite loops
+-- Testing
+--   Chi squared test for randomness
+--   Criteria for success: No crashes, no exceptions, productive, no infinite loops
+--   Check Dominion wiki to implement edge cases
+--   Write other tests
+
+-- Elegance
+--   See if I can fix the effect hierarchy (stacks, boardstateread, other things?)
+--   Prune useless effect constructors and add useful ones
+--   GameRules, ValidResponses, GameLoop, reactions, and logging via intercepting might all be a bit over engineered
+--   Is the scoping mechanism really needed in full generality? We could use basically another unique draw thing but idk how to get that to the right place.
+--   Splitting interpreter logic correctly
+--   Kill partial functions
+
+-- Type security/guarantees/interface security
+--   Cards shouldn't get stacks
+--   Ensuring we can actually get a gain if we check for it? And making that harder to mess up.
+--   Contract expressing the game logic?
+--   Stacks and bad locations. Consider making a safer wrapper. Maybe have module based machinery to provide guaranteed accesses.
+--   Players.
+--   Consider which tests are defining/fundamental/documenting, and which are kind of just thrown in as checks
+
+-- Future work (non essential for testing and playing)
+--   We need interactive state queries lol
+--   Check card semantics
+--   Refactoring for Cards common functionality
+--   Current players turn in readstate
+--   Disuse \\, union, intersect and hlint it out https://github.com/nh2/haskell-ordnub
