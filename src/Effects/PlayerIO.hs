@@ -4,16 +4,13 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE DerivingVia #-}
 module Effects.PlayerIO where
 
 import Polysemy
 import Data.Aeson
 import Data.Aeson.GADT.TH
-import Data.Constraint.Extras
 import Data.Constraint.Extras.TH
-import Data.Type.Equality
-import Data.GADT.Compare
-import Data.Some.Newtype
 import qualified Data.Map as Map
 
 import Types
@@ -22,37 +19,15 @@ import Effects.Log
 import Internal.TH
 import Data.Coerce
 
-newtype ReactionEvent card = ReactionEvent {getReactionEvent :: EventAnswer Maybe card}
+newtype ReactionEvent card = ReactionEvent {getReactionEvent :: EventAnswer Maybe card} deriving (Eq, Show)
+deriving via (EventAnswer Maybe card) instance ToJSON card => ToJSON (ReactionEvent card)
+deriving via (EventAnswer Maybe card) instance FromJSON card => FromJSON (ReactionEvent card)
 
 reactionEvent :: forall {k} {card} {m :: k} {a}. CardEffects' card m a -> Maybe a -> ReactionEvent card
 reactionEvent ceff ma = ReactionEvent (EventAnswer ceff ma)
 
 instance Functor ReactionEvent where
     fmap f x = coerce $ fmap f (getReactionEvent x)
-
-instance ToJSON card => ToJSON (ReactionEvent card) where
-  toJSON (ReactionEvent (EventAnswer eff result)) =
-    has @ToJSON eff $ object
-      [ "effect" .= toJSON eff
-      , "result" .= toJSON result
-      ]
-
-instance FromJSON card => FromJSON (ReactionEvent card) where
-  parseJSON = withObject "LoggedEvent" $ \o -> do
-    Some eff <- o .: "effect"
-    has @FromJSON eff $ do
-      result <- parseJSON =<< o .: "result"
-      pure (ReactionEvent (EventAnswer eff result))
-
-instance Eq card => Eq (ReactionEvent card) where
-  ReactionEvent (EventAnswer eff1 result1) == ReactionEvent (EventAnswer eff2 result2) = 
-    case geq eff1 (cardEffectrMap eff2) of
-      Nothing   -> False
-      Just Refl -> has @Eq eff1 $ result1 == result2
-
-instance Show card => Show (ReactionEvent card) where
-  show (ReactionEvent (EventAnswer eff result)) =
-    has @Show eff $ "ReactionEvent (" <> show eff <> ") (" <> show result <> ")"
 
 -- Obvious design choice: Separate player IO and clients out from server/central logic.
 data PlayerIO m a where

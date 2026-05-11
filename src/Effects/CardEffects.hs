@@ -13,8 +13,11 @@ import Data.Aeson.GADT.TH
 import Data.Constraint.Extras
 import Data.Type.Equality
 import Data.GADT.Compare
-import Data.Functor.Identity
-import Data.Functor.Const
+import Data.Functor.Classes
+import Data.Traversable
+import Data.Aeson
+
+import Data.Some.Newtype
 
 import Types
 import Internal.TH
@@ -55,14 +58,14 @@ traverse'' f (EventAnswer (Reveal pl c) x) = fmap (\a -> EventAnswer (Reveal pl 
 traverse'' f (EventAnswer (TopDeck pl c) x) = fmap (\a -> EventAnswer (TopDeck pl a) x) (f c)
 traverse'' f (EventAnswer (GainCardTo pl cf pos) x) = fmap (EventAnswer (GainCardTo pl cf pos)) (traverse (traverse f) x)
 
-instance (Traversable f1) => Functor (EventAnswer f1) where
-    fmap f = runIdentity . traverse (Identity . f)
-
-instance (Traversable f1) => Foldable (EventAnswer f1) where
-    foldMap f = getConst . traverse (Const . f)
-
 instance (Traversable f1) => Traversable (EventAnswer f1) where
     traverse = traverse''
+
+instance (Traversable f1) => Functor (EventAnswer f1) where
+    fmap = fmapDefault
+
+instance (Traversable f1) => Foldable (EventAnswer f1) where
+    foldMap = foldMapDefault
 
 genNoR ''CardEffects'
 
@@ -103,6 +106,27 @@ instance Eq card => GEq (CardEffects' card m) where
   geq (GainCardTo p1 f1 pos1) (GainCardTo p2 f2 pos2) = if p1 == p2 && f1 == f2 && pos1 == pos2 then Just Refl else Nothing
   geq _ _ = Nothing
 
+instance (Eq1 f, Eq a) => Eq (EventAnswer f a) where
+  (EventAnswer ceff1 fa1) == (EventAnswer ceff2 fa2) = case geq ceff1 (cardEffectrMap ceff2) of
+      Nothing   -> False
+      Just Refl -> has @Eq ceff1 $ fa1 == fa2
+
+instance (Show1 f, Show a) => Show (EventAnswer f a) where
+  show (EventAnswer eff result) = has @Show eff $ "EventAnswer (" <> show eff <> ") (" <> show result <> ")"
+
+instance (ToJSON1 f, ToJSON card) => ToJSON (EventAnswer f card) where
+  toJSON (EventAnswer eff result) =
+    has @ToJSON eff $ object
+      [ "effect" .= toJSON eff
+      , "result" .= toJSON1 result
+      ]
+
+instance (FromJSON1 f, FromJSON card) => FromJSON (EventAnswer f card) where
+  parseJSON = withObject "LoggedEvent" $ \o -> do
+    Some eff <- o .: "effect"
+    has @FromJSON eff $ do
+      result <- parseJSON1 =<< o .: "result"
+      pure (EventAnswer eff result)
 
 drawCard :: Member CardEffects r => Player -> Int -> Sem r [Card]
 drawCard player n = fmap catMaybes $ replicateM n $ drawOnce player
