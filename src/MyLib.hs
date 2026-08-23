@@ -63,26 +63,21 @@ traceState = intercept @(State GameState) $ \case
   Get -> get
   Put x -> put $ traceShowId x
 
-runBlocks :: Members '[BoardStateRead, CardEffects] r => Sem r a -> Sem r a
-runBlocks = intercept @CardEffects $ \ceff -> case getEffectPlayer ceff of
-  Nothing -> send $ cardEffectrMap ceff
-  Just pl -> if undefined then return () else send $ cardEffectrMap ceff -- So here, we have an issue of when to unset blocking?
-
 injecting :: Members '[GameRules, Log Card, BoardStateRead, PlayerIO, Obscure] r => Sem (CardEffects:r) a -> Sem (CardEffects:r) a
-injecting = logEffects . interpDoReaction . runBlocks . injectReaction
+injecting = logEffects . interpDoReaction . injectReaction
 
-main :: [Player] -> [CardFace] -> IO ()
-main pl cf = runM .
+main_ :: Bool -> Int -> PileConfig [] -> Map Position [Card] -> GameState -> IO ()
+main_ initGame randSeed pileconfig0 stack0 gs0 = runM .
              serialiseToTerminal .
              -- interpPlayerIO .
 
-             interpRandomWithSeed 4 . -- interpRandomGlobal
+             interpRandomWithSeed randSeed . -- interpRandomGlobal
              interpRandomShuffle .
              runRandomUniqueId .
 
-             evalState @(Map Position [Card]) (initStacks pl cf) .
-             interpStacks (stacksConfig pl).
-             evalState @GameState (initGS pl) .
+             evalState @(Map Position [Card]) stack0 .
+             interpStacks pileconfig0 .
+             evalState @GameState gs0 .
              traceState .
              interpStateRead .
 
@@ -100,10 +95,18 @@ main pl cf = runM .
              interpGameLoop .
              logTurn 
              $
+             when initGame setInitialGameState >>
              playGame
 
+main :: [Player] -> [CardFace] -> IO ()
+main pl cf = main_ True 4 (stacksConfig pl) (initStacks pl cf) (initGS pl)
+
 mainTest :: IO ()
-mainTest = main (MkPlayer <$> [1..3]) [Bandit, Moat]
+mainTest = main_ True 4 (stacksConfig pl) (initStacks pl cf) (initGS pl)
+  where
+    n = 3
+    pl = MkPlayer <$> [1..n]
+    cf = [Bandit, Moat, ThroneRoom, Village, Militia, Vassal, Sentry, Mine]
 
 -- TODO: 
 -- Correctness bugs, not high priority:

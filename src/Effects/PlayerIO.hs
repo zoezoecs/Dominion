@@ -42,7 +42,7 @@ data PlayerIO m a where
   GetUpToNCardsTEMP :: Player -> Int -> [Card] -> PlayerIO m [Card]
   SendInfo :: Player -> Log PotentiallyObscured m a -> PlayerIO m () -- Monomorphised card for less GHC extensions
   SendStack :: PlayerPosition -> [Card] -> PlayerIO m ()
-  GetPlayerReaction :: Player -> ReactionEvent PotentiallyObscured -> PlayerIO m (Maybe Card)
+  GetPlayerReaction :: Player -> ReactionEvent PotentiallyObscured -> [Card] -> PlayerIO m (Maybe Card)
 makeSem ''PlayerIO
 deriveJSONGADT ''PlayerIO
 deriveArgDict ''PlayerIO
@@ -51,6 +51,3 @@ deriving instance Show (PlayerIO m a)
 genNoR' (Map.singleton ''Log 'logMapR) ''PlayerIO
 playerIOmapR :: PlayerIO m1 a -> PlayerIO m2 a
 playerIOmapR = chR_PlayerIO
-
-getPlayerReaction' :: Member PlayerIO r => Player -> (forall m. CardEffects' PotentiallyObscured m a) -> Maybe a -> Sem r (Maybe Card)
-getPlayerReaction' pl ceff ma = getPlayerReaction pl (reactionEvent ceff ma)

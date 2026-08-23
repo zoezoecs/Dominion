@@ -82,5 +82,4 @@ playUntilGameOver f xs = void $ anyM f xs
 playGame :: Members '[GameLoop, BoardStateRead, PlayerIO, CardEffects] r => Sem r ()
 playGame = do
     players <- Map.keys <$> getPlayers
-    setInitialGameState
     playUntilGameOver playerRound (cycle players)

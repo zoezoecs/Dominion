@@ -21,6 +21,39 @@ import Effects
 import Cards
 import Interpreters.DoRedact
 
+blockedDefault :: CardEffects' card m a -> a
+blockedDefault (ModifyActions {})    = 0        -- or: don't intercept these at all, see note below
+blockedDefault (ModifyBuys {})       = 0
+blockedDefault (ModifyCurrency {})   = 0
+blockedDefault (ActivateCard {})     = ()
+blockedDefault (DrawOnce {})         = Nothing
+blockedDefault (BlockOne {})         = ()
+blockedDefault (Discard {})          = ()
+blockedDefault (TrashCard {})        = ()
+blockedDefault (Reveal {})           = ()
+blockedDefault (TopDeck {})          = ()
+blockedDefault (GainCardTo {})       = Left GainError
+
+withBlocking
+  :: (Members '[Stacks, State GameState, PlayerIO, BoardStateRead, CardEffects] r)
+  => Sem r a -> Sem r a
+withBlocking action = do
+  gs <- get
+  let blockedNow = blocks gs
+  modify (\g -> g { blocks = Map.map (const False) (blocks g) })
+  intercept @CardEffects (\ceff -> case getEffectPlayer ceff of
+      Just target | Map.findWithDefault False target blockedNow -> pure (blockedDefault ceff)
+      _ -> send (cardEffectrMap ceff)
+    ) action
+
+runCardEffectForActivation
+  :: (Members '[Stacks, State GameState, PlayerIO, BoardStateRead, CardEffects] r)
+  => Card -> Player -> Sem r ()
+runCardEffectForActivation c pl
+  | isAttack c = withBlocking body
+  | otherwise  = body
+  where
+    body = getEffect (getFace c) pl c
 
 interpCardEffects ::
   (Members '[Stacks, State GameState, PlayerIO, BoardStateRead] r1,
@@ -35,7 +68,7 @@ interpCardEffects inject = interpCardEffects' . inject
       ModifyCurrency n -> modify (modCurrency n) >> current_currency <$> get
       ActivateCard pl c -> do
         cardToPos c (PlayerCard pl PlayerInPlay)
-        interpCardEffects inject (getEffect (getFace c) pl c) 
+        interpCardEffects inject (runCardEffectForActivation c pl)
       -- Moat check and reaction checks. Isn't it weird c appears twice? 
       -- Activating cards, even if they aren't by playing from hand, FIRST moves them into play. c.f. Vassal, Throne Room.
       DrawOnce pl -> drawTo (PlayerCard pl PlayerDeck) (PlayerCard pl PlayerHand)
@@ -70,10 +103,15 @@ redactReactEvent :: Member Obscure r => ReactionEvent Card -> Player -> Sem r (R
 redactReactEvent ev pl = ReactionEvent <$> redactEvent (getReactionEvent ev) pl
 
 -- Prompt the player to react, Maybe signals choosing to not buy
-playOneReaction' :: (Member DoReaction r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r (Maybe ()) -> Sem r (Maybe ())
+playOneReaction'
+  :: (Members '[DoReaction, PlayerIO, Obscure, GameRules, BoardStateRead] r)
+  => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r (Maybe ()) -> Sem r (Maybe ())
 playOneReaction' player ceff ma if_invalid = do
-  redacted <- redactReactEvent (reactionEvent ceff ma) player
-  mreact <- getPlayerReaction player redacted
+  let realEvent = reactionEvent ceff ma
+  hand <- getHand player
+  validCards <- filterM (\c -> isRight <$> canReact player c realEvent) hand
+  redacted <- redactReactEvent realEvent player
+  mreact <- getPlayerReaction player redacted validCards
   case mreact of
     Nothing -> pure Nothing
     Just card -> do
@@ -81,21 +119,24 @@ playOneReaction' player ceff ma if_invalid = do
      case moutcome of
       Left _   -> if_invalid
       Right outcome -> pure $ Just outcome
+  where
+    isRight (Right _) = True
+    isRight (Left _)  = False
 
-playOneReaction :: (Member DoReaction r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinnitial) a -> Maybe a -> Sem r (Maybe ())
+playOneReaction :: (Member DoReaction r, Member GameRules r, Member BoardStateRead r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinnitial) a -> Maybe a -> Sem r (Maybe ())
 playOneReaction pl ceff ma = fix $ playOneReaction' pl ceff ma
 
-playerReact :: (Member DoReaction r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r [()]
+playerReact :: (Member DoReaction r, Member GameRules r, Member BoardStateRead r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r [()]
 playerReact pl ceff ma = unfoldM (playOneReaction pl ceff ma)
 
-playerReacts :: Members '[DoReaction, CardEffects, PlayerIO, Obscure] r => Player -> CardEffects (Sem rinitial) a -> Sem r a
+playerReacts :: Members '[DoReaction, BoardStateRead, GameRules, CardEffects, PlayerIO, Obscure] r => Player -> CardEffects (Sem rinitial) a -> Sem r a
 playerReacts player cardEff = do
   _ <- playerReact player cardEff Nothing -- "before reactions"
   ret <- send (cardEffectrMap cardEff)
   _ <- playerReact player cardEff (Just ret) -- "after reactions"
   pure ret
 
-injectReaction :: Members '[BoardStateRead, PlayerIO, CardEffects, Obscure] r => Sem r a -> Sem (DoReaction:r) a
+injectReaction :: Members '[BoardStateRead, GameRules, BoardStateRead, PlayerIO, CardEffects, Obscure] r => Sem r a -> Sem (DoReaction:r) a
 injectReaction program = do
   players' <- getPlayers
   let players = Map.keys players' -- TODO: This isn't correct, we need the current player's turn (NOT the card effect player). It doesn't matter much for base dominion though.

@@ -35,7 +35,6 @@ interpGameLoop = interpret $ \case
     case valid_action of
       Left err -> pure $ Left err
       Right () -> do
-        cardToPos card (PlayerCard player PlayerInPlay)
         modify (modActions (-1))
         activateCard player card
         pure $ Right ()
@@ -109,13 +108,6 @@ interpGameRules = interpret $ \case
                   | otherwise                = Right has_reac
             pure result
 
-lookupTempId :: TempId -> Card
-lookupTempId = undefined
-
-deidentify :: PotentiallyObscured -> Card
-deidentify (PObscured (Left (c,_))) = c
-deidentify (PObscured (Right (Obscured tid))) = lookupTempId tid
-
 runValidResponses :: Members '[BoardStateRead, Stacks, GameRules] r => InterpreterFor ValidResponses r
 runValidResponses = interpret $ \case
   GetValidResponses (GetAction pl) -> do
@@ -133,10 +125,7 @@ runValidResponses = interpret $ \case
   -- GetValidResponses (GetTrashAny _ cards) -> pure $ subsequences cards
   -- GetValidResponses (GetTrashExactlyN _ n cards) -> pure $ filter (\x -> length x == n) (subsequences cards)
   GetValidResponses (SendInfo _ _) -> pure [()]
-  GetValidResponses (GetPlayerReaction pl re) -> do
-    handCards <- getHand pl
-    cardSuccess <- traverse (fanout pure (\c -> canReact pl c (fmap deidentify re))) handCards
-    pure $ Nothing:[Just c | (c,Right _) <- cardSuccess]
+  GetValidResponses (GetPlayerReaction _ _ validCards) -> pure $ Nothing:(Just <$> validCards)
   GetValidResponses (GetCardTEMP _ cards) -> pure cards
   GetValidResponses (GetCardsTEMP _ cards) -> pure $ subsequences cards
   GetValidResponses (GetMCardTEMP _ cards) -> pure $ Nothing:(Just <$> cards)
