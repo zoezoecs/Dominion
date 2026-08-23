@@ -82,24 +82,52 @@ seedRandomDet = forAll (choose (0, maxBound :: Int)) $ \seed -> ioProperty $ do
 
 roundTrip :: (Eq a, ToJSON a, FromJSON a) => a -> Bool
 roundTrip x = Ae.Success x == fromJSON (toJSON x)
+-- track down every JSON serialisable datatype?
 
 -- EventAnswer f1
 blah :: Laws
 blah = traversableLaws (Proxy :: Proxy (EventAnswer Maybe))
 
 
--- Stacks invariants: Keys unchanged and set of values unchanged. Maintains invariants (shuffle preserves that piles set, stack preserves the append)
--- Randomness: Shuffles are indeed random and repeatable. Check distribution within one seed and across seeds; independence.
--- Logging: logging happens immediately after events
--- Interpreter tests: commutativity, 
--- Game Logic: Probably just integration tests and regression tests.
--- PlayerIO get legal actions returns exactly the legal actions
+-- Effects to test:
+--  CardEffects:
+--    Unit tests, regression tests
+--  Stacks: 
+--    Invariants: Keys unchanged, set of values unchanged, shuffle preserves that piles set, stack preserves the append
+--    All write actions should change the state?
+--    Performance
+-- Randomness: 
+--   Shuffles are indeed uniform and repeatable. 
+--   Cross seed and within seed testing
+--   Independence
+-- Logging & Information:
+--    Logging happens immediately after events
+--    Logging logs what actually happened to someone
+--    Unit & regression tests for information
+--    Unit tests for correlation
+-- Interpreter tests: 
+--    Commutativity
+--    Ordering of emitted effects
+-- Game Logic (BoardStateRead, GameLoop, GameRules, actual game loop function):
+--    Probably just integration tests, unit tests, regression tests. Make sure encoding issues like invalid players, cards not in supply, etc are covered well.
+--    This is probably where all the bugs are going to be, so more attention needs to go here.
+-- Reactions:
+--    Unit tests, maybe make some extra card faces, check dominion wiki
+-- GetValidResponses:
+--   QuickCheck with rules
 -- Serialisation: Round trips
--- Traversable laws
--- implicit invariants
+-- PlayerIO: Not worth testing specifically.
 
--- Regression testing
--- Check basic game rules are upheld properly, property test over all cardfaces and so on
--- Unit tests with throne room
--- Unit tests with game ending and victory
--- No crashes
+-- Cross effect checks - do writes in one effect and check you can read it in another. Topdeck and then draw, fix the deck and check hand, trash and it leaves the hand, gain vp and getvp goes up, 
+-- Create random play functions, since the search space is comparatively small. Can have garbage input strategy, random strategy, vaguely sensible strategy, and switch between them.
+-- Criteria for success: No crashes, no exceptions, productive
+-- Traversable laws
+-- Unit tests:
+--   Check Dominion wiki to test edge cases for card logic
+--   Sentry etc with one card left in deck but >1 in discard pile
+--   Throne room
+--   Throne room can't throne room itself
+--   Reactions and moat
+--   Game ending, order of who can play things
+
+-- How do I check players cant do things they aren't meant to?

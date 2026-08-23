@@ -61,14 +61,22 @@ data Position = PlayerCard Player PlayerPosition | Supply CardFace | Trash deriv
 allPositions :: [PlayerPosition]
 allPositions = [PlayerDeck, PlayerDiscardPile, PlayerHand, PlayerInPlay, PlayerSetAside]
 
+newtype TriggerCondition = OnFirstCardPlayed CardFace
+newtype TriggerEffect = GainCurrency Int
+data Trigger = Trigger
+  { triggerPlayer :: Player
+  , triggerCondition :: TriggerCondition -- how do we ensure this is always checked at the right point
+  , triggerEffect    :: TriggerEffect}   -- because of this, it needs to be injected like a reaction
+
 -- Obvious design choice: state is a big datatype
 data GameState = MkGameState {
   all_players :: [Player],
   blocks :: Map Player Bool,
+  -- triggers :: [Trigger],
+  -- cards_played :: [Card],
   current_actions :: Int,
   current_buys :: Int,
   current_currency :: Int
-  -- reactions :: [Reaction m]
 } deriving (Eq, Ord, Show)
 
 modActions :: Int -> GameState -> GameState

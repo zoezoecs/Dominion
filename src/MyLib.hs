@@ -63,8 +63,13 @@ traceState = intercept @(State GameState) $ \case
   Get -> get
   Put x -> put $ traceShowId x
 
+runBlocks :: Members '[BoardStateRead, CardEffects] r => Sem r a -> Sem r a
+runBlocks = intercept @CardEffects $ \ceff -> case getEffectPlayer ceff of
+  Nothing -> send $ cardEffectrMap ceff
+  Just pl -> if undefined then return () else send $ cardEffectrMap ceff -- So here, we have an issue of when to unset blocking?
+
 injecting :: Members '[GameRules, Log Card, BoardStateRead, PlayerIO, Obscure] r => Sem (CardEffects:r) a -> Sem (CardEffects:r) a
-injecting = interpDoReaction . logEffects . injectReaction
+injecting = logEffects . interpDoReaction . runBlocks . injectReaction
 
 main :: [Player] -> [CardFace] -> IO ()
 main pl cf = runM .
@@ -111,13 +116,7 @@ mainTest = main (MkPlayer <$> [1..3]) [Bandit, Moat]
 -- Correctness bugs, high priority
 --   Defending against attacks
 --   Implement Merchant
---   Possible reactions
-
--- Testing
---   Chi squared test for randomness
---   Criteria for success: No crashes, no exceptions, productive, no infinite loops
---   Check Dominion wiki to implement edge cases
---   Write other tests
+--   Deidentify for reactions
 
 -- Elegance
 --   See if I can fix the effect hierarchy (stacks, boardstateread, other things?)
@@ -126,9 +125,10 @@ mainTest = main (MkPlayer <$> [1..3]) [Bandit, Moat]
 --   Is the scoping mechanism really needed in full generality? We could use basically another unique draw thing but idk how to get that to the right place.
 --   Splitting interpreter logic correctly
 --   Kill partial functions
+--   How to ensure that players can only "affect the cards in their hand" when thats whats meant to happen
 
 -- Type security/guarantees/interface security
---   Cards shouldn't get stacks
+--   CardSemantics shouldn't get stacks
 --   Ensuring we can actually get a gain if we check for it? And making that harder to mess up.
 --   Contract expressing the game logic?
 --   Stacks and bad locations. Consider making a safer wrapper. Maybe have module based machinery to provide guaranteed accesses.

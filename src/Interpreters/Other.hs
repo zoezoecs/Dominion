@@ -33,7 +33,11 @@ interpCardEffects inject = interpCardEffects' . inject
       ModifyActions n -> modify (modActions n) >> current_actions <$> get
       ModifyBuys n -> modify (modBuys n) >> current_buys <$> get
       ModifyCurrency n -> modify (modCurrency n) >> current_currency <$> get
-      ActivateCard pl c -> interpCardEffects inject (getEffect (getFace c) pl c) -- Moat check and reaction checks. Isn't it weird c appears twice?
+      ActivateCard pl c -> do
+        cardToPos c (PlayerCard pl PlayerInPlay)
+        interpCardEffects inject (getEffect (getFace c) pl c) 
+      -- Moat check and reaction checks. Isn't it weird c appears twice? 
+      -- Activating cards, even if they aren't by playing from hand, FIRST moves them into play. c.f. Vassal, Throne Room.
       DrawOnce pl -> drawTo (PlayerCard pl PlayerDeck) (PlayerCard pl PlayerHand)
       BlockOne pl _ -> void $ modify (setBlocks pl True)
       Discard pl c -> void $ cardToPos c (PlayerCard pl PlayerDiscardPile)

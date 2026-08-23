@@ -172,9 +172,9 @@ village :: CardSemantics'
 village player _ = void $ drawCard player 1 >> modifyActions 2
 
 throneRoom :: CardSemantics'
-throneRoom player card = void $ do
+throneRoom player _ = void $ do
   hand <- getHand player
-  mcard <- getMCardTEMP player (delete card hand)
+  mcard <- getMCardTEMP player hand
   forM_ mcard (replicateM 2 . activateCard player)
 
 laboratory :: CardSemantics'
@@ -283,7 +283,7 @@ poacher player _ = void $ do
   to_discard <- getNCardsTEMP player empty_supplies hand
   forM_ to_discard (discard player)
 
-harbinger :: CardSemantics' -- SCOPED
+harbinger :: CardSemantics'
 harbinger player _ = void $ do
   discards <- getDiscardPile player
   sendStack PlayerDiscardPile discards
@@ -323,7 +323,7 @@ libraryDraw player = do
         Nothing -> drawOnce player
         Just skip -> putPlay player skip >> pure (Just skip)
 
-sentry :: CardSemantics' -- SCOPED
+sentry :: CardSemantics'
 sentry player _ = do
   _ <- drawCard player 1
   _ <- modifyActions 1

@@ -45,6 +45,20 @@ type CardEffects = CardEffects' Card
 
 data EventAnswer f card = forall m a. EventAnswer (CardEffects' card m a) (f a)
 
+getEffectPlayer :: CardEffects' card m a -> Maybe Player
+getEffectPlayer (ModifyActions _) = Nothing
+getEffectPlayer (ModifyBuys _) = Nothing
+getEffectPlayer (ModifyCurrency _) = Nothing
+getEffectPlayer (ActivateCard pl _) = Just pl
+getEffectPlayer (DrawOnce pl) = Just pl
+getEffectPlayer (BlockOne pl _) = Just pl
+getEffectPlayer (Discard pl _) = Just pl
+getEffectPlayer (TrashCard pl _) = Just pl
+getEffectPlayer (Reveal pl _) = Just pl
+getEffectPlayer (TopDeck pl _) = Just pl
+getEffectPlayer (GainCardTo pl _ _) = Just pl
+
+
 traverse'' :: (Applicative f, Traversable f1) => (c1 -> f c2) -> EventAnswer f1 c1 -> f (EventAnswer f1 c2)
 traverse'' _ (EventAnswer (ModifyActions n) x) = pure $ EventAnswer (ModifyActions n) x
 traverse'' _ (EventAnswer (ModifyBuys n) x) = pure $ EventAnswer (ModifyBuys n) x
