@@ -13,18 +13,23 @@ import Debug.Trace
 import Types
 import Effects
 
-
 -- TODO: Fix maybes everywhere
 unsafeLookup :: Ord k => k -> Map k c -> c
 unsafeLookup l = fromJust . Map.lookup l
 
 refill :: (Member Stacks r, Foldable t) => PileConfig t -> Position -> Sem r ()
-refill (PileConfig fillFrom shuffleOnFill) l = trace "wah" $ do
+refill (PileConfig fillFrom shuffleOnFill) l = do
     case Map.lookup l fillFrom of
       Nothing -> pure ()
       Just l' -> do
         stackOnto l' l
         when (l `elem` shuffleOnFill) $ shuffleStack l
+
+ensureAtLeast :: (Member (State (Map Position [Card])) r, Member Stacks r, Foldable t) => PileConfig t -> Position -> Int -> Sem r ()
+ensureAtLeast cfg pos n = do
+  cardMap <- get @(Map Position [Card])
+  let stack = unsafeLookup pos cardMap
+  when (length stack < n) $ refill cfg pos
 
 -- TODO: can i make this use a more efficient list esque representation?
 interpStacks :: (Foldable t, Members '[State (Map Position [Card]), RandomShuffle] r) => PileConfig t -> Sem (Stacks : r) a -> Sem r a
@@ -58,4 +63,9 @@ interpStacks cfg = interpret $ \case
         let newMap = fmap (filter (card /=)) cardMap
         let stack1 = unsafeLookup loc newMap
         void $ put $ Map.insert loc (card:stack1) newMap
-
+      SeeStackMap -> get
+      GetTopN loc n -> do
+        cardMap <- get @(Map Position [Card])
+        let stack = unsafeLookup loc cardMap
+        interpStacks cfg $ ensureAtLeast cfg loc n     -- loop: if length < n and stack empty after prior refills, refill; stop when can't refill further
+        pure $ take n stack

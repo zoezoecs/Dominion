@@ -1,5 +1,6 @@
 module Base where
 
+import Control.Monad.Loops
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
@@ -13,6 +14,29 @@ dupKey = Map.mapWithKey const
 constMap :: Ord k => [k] -> a -> Map k a
 constMap keys a = Map.fromList $ map (flip (,) a) keys
 
+toSnd :: (a -> b) -> a -> (a, b)
+toSnd f a = (a, f a)
+
+fmapToSnd :: Functor f => (a -> b) -> f a -> f (a, b)
+fmapToSnd = fmap . toSnd
+
+liftToSnd :: Monad m => (a -> m b) -> a -> m (a, b)
+liftToSnd f a = do
+    y <- f a
+    pure (a, y)
+
+bindToSnd :: Monad m => (a -> m b) -> m a -> m (a, b)
+bindToSnd f a = do
+    x <- a
+    y <- f x
+    pure (x, y)
+
+useUntil :: Monad m => m Bool -> m (Maybe a) -> m [a]
+useUntil mbool mma = unfoldM (liftA2 if' mbool mma)
+
+if' :: Bool -> Maybe a -> Maybe a
+if' True = id
+if' False = const Nothing
 
 fanout :: Applicative m => (c -> m a) -> (c -> m b) -> (c -> m (a,b))
 fanout cma cmb c = liftA2 (,) (cma c) (cmb c)

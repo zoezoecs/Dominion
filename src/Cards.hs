@@ -130,13 +130,13 @@ otherPlayerAttack _ _ = False
 
 
 
-gainToSt :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r, Member Stacks r) => PlayerPosition -> Player -> (CardFace -> Bool) -> Sem r (Either InvalidGain Card)
+gainToSt :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => PlayerPosition -> Player -> (CardFace -> Bool) -> Sem r (Either InvalidGain Card)
 gainToSt ppos player cond = do
   supplies <- activeSupplies
   cf <- getCardFaceTEMP player (filter cond supplies)
   gainCardTo player cf ppos
 
-gainSt :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r, Member Stacks r) => Player -> (CardFace -> Bool) -> Sem r (Either InvalidGain Card)
+gainSt :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> (CardFace -> Bool) -> Sem r (Either InvalidGain Card)
 gainSt = gainToSt PlayerDiscardPile
 
 
@@ -145,7 +145,7 @@ witch :: CardSemantics'
 witch player _ = do
   _ <- drawOnce player
   _ <- modifyActions 1
-  _ <- applyToOthers player (`gainCard` Curse)
+  _ <- applyOthers player (`gainCard` Curse)
   pure ()
 
 moat :: CardSemantics'
@@ -162,7 +162,7 @@ councilRoom :: CardSemantics'
 councilRoom player _ = do
   _ <- drawCard player 4
   _ <- modifyBuys 1
-  _ <- applyToOthers player drawOnce
+  _ <- applyOthers player drawOnce
   pure ()
 
 smithy :: CardSemantics'
@@ -250,7 +250,7 @@ remodel player _ = void $ do
 bureaucrat :: CardSemantics' -- SCOPED
 bureaucrat player _ = void $ do
   _ <- gainCardTo player Silver PlayerDeck
-  applyToOthers player bureaucrated
+  applyOthers player bureaucrated
 
 bureaucrated :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r ()
 bureaucrated player = do
@@ -293,6 +293,10 @@ harbinger player _ = void $ do
 militia :: CardSemantics'
 militia player _ = void $ do
   _ <- modifyCurrency 2
+  applyOthers player militiaed
+
+militiaed :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r ()
+militiaed player = do
   hand <- getHand player
   keep_cards <- getNCardsTEMP player 3 hand
   forM_ (hand \\ keep_cards) (discard player)
@@ -300,7 +304,7 @@ militia player _ = void $ do
 vassal :: CardSemantics' -- SCOPED
 vassal player _ = void $ do
   _ <- modifyCurrency 2
-  mcard <- getTopCard player
+  mcard <- getTopDeck player
   case mcard of
     Nothing -> pure ()
     Just card -> discard player card >> when (CardAction `elem` getTypes card) (void $ do
@@ -309,27 +313,25 @@ vassal player _ = void $ do
 
 library :: CardSemantics'
 library player _ = void $ do
-  skipped_cards <- whileM (liftA2 (&&) (canDraw player) ((7 >=) . length <$> getHand player)) (libraryDraw player)
-  forM (catMaybes skipped_cards) (discard player)
+  skipped_cards <- useUntil ((7 >=) . length <$> getHand player) (libraryDraw player)
+  forM skipped_cards (discard player)
 
-libraryDraw :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r, Member Stacks r) => Player -> Sem r (Maybe Card)
+libraryDraw :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r (Maybe Card)
 libraryDraw player = do
-  mcard  <- mTop <$> getStack (PlayerCard player PlayerDeck) -- TODO: also wrong, won't reshuffle if the deck empties
+  mcard  <- getTopDeck player
   case mcard of
     Nothing -> pure Nothing
     Just card -> do
       toSkip <- getMCardTEMP player (filter isAction [card])
       case toSkip of
         Nothing -> drawOnce player
-        Just skip -> putPlay player skip >> pure (Just skip)
+        Just skip -> putInPlay player skip >> pure (Just skip)
 
 sentry :: CardSemantics'
 sentry player _ = do
   _ <- drawCard player 1
   _ <- modifyActions 1
-  mcard0 <- getTopNCard player 0
-  mcard1 <- getTopNCard player 1
-  let topTwo = catMaybes [mcard0, mcard1] -- TODO: Incorrect. Should draw from discard if needed, and the code for this should be somewhere else.  Ensure n?
+  topTwo <- getTopDeckN player 2
   toTrash <- getCardsTEMP player topTwo
   toDiscard <- getCardsTEMP player (topTwo \\ toTrash)
   anyOrder <- getCardsTEMP player ((topTwo \\ toTrash) \\ toDiscard)
@@ -346,13 +348,11 @@ merchant player _ = do
 bandit :: CardSemantics'
 bandit player _ = void $ do
   _ <- gainCard player Gold
-  applyToOthers player bandited
+  applyOthers player bandited
 
 bandited :: (Member BoardStateRead r, Member CardEffects r, Member PlayerIO r) => Player -> Sem r ()
 bandited player = do
-  mcard0 <- getTopNCard player 0
-  mcard1 <- getTopNCard player 1
-  let cards = catMaybes [mcard0, mcard1]
+  cards <- getTopDeckN player 2
   forM_ cards (reveal player)
   let nonCopperTreasure = filter ((/= Copper) . getFace) cards
   toTrash <- if null nonCopperTreasure then pure [] else singleton <$> getCardTEMP player nonCopperTreasure

@@ -3,17 +3,14 @@ module Interpreters.Other where
 import Polysemy
 import Polysemy.State
 
+import Control.Arrow
 import Control.Monad
-import Control.Monad.Loops
-import Data.Aeson
---import qualified Data.ByteString.Lazy as BS
-import qualified Data.ByteString.Lazy.Char8 as LC
-import qualified Data.ByteString.Char8 as C
 import Data.Monoid
 import Data.Function
 import Data.Constraint.Extras
 import qualified Data.Map as Map
 import Debug.Trace
+import Data.List ((\\))
 
 import Base
 import Types
@@ -32,7 +29,9 @@ blockedDefault (Discard {})          = ()
 blockedDefault (TrashCard {})        = ()
 blockedDefault (Reveal {})           = ()
 blockedDefault (TopDeck {})          = ()
+blockedDefault (PutInPlay{})         = ()
 blockedDefault (GainCardTo {})       = Left GainError
+blockedDefault (GetTopDeckN{})       = []
 
 withBlocking
   :: (Members '[Stacks, State GameState, PlayerIO, BoardStateRead, CardEffects] r)
@@ -47,7 +46,7 @@ withBlocking action = do
     ) action
 
 runCardEffectForActivation
-  :: (Members '[Stacks, State GameState, PlayerIO, BoardStateRead, CardEffects] r)
+  :: (Members '[Stacks, Dispatch, State GameState, PlayerIO, BoardStateRead, CardEffects] r)
   => Card -> Player -> Sem r ()
 runCardEffectForActivation c pl
   | isAttack c = withBlocking body
@@ -56,7 +55,7 @@ runCardEffectForActivation c pl
     body = getEffect (getFace c) pl c
 
 interpCardEffects ::
-  (Members '[Stacks, State GameState, PlayerIO, BoardStateRead] r1,
+  (Members '[Stacks, Dispatch, State GameState, PlayerIO, BoardStateRead] r1,
   Members '[Stacks, State GameState, PlayerIO, BoardStateRead] r2) =>
   (forall x. Sem (CardEffects : r1) x -> Sem (CardEffects : r2) x) ->
   Sem (CardEffects : r1) a -> Sem r2 a
@@ -77,6 +76,7 @@ interpCardEffects inject = interpCardEffects' . inject
       TrashCard _ c -> void $ cardToPos c Trash
       Reveal _ _ -> pure () -- Reveal handled elsewhere
       TopDeck pl c -> void $ cardToPos c (PlayerCard pl PlayerDeck)
+      PutInPlay pl c -> cardToPos c (PlayerCard pl PlayerInPlay)
       GainCardTo pl c pos -> do
         mcard <- drawTo (Supply c) (PlayerCard pl pos)
         case mcard of
@@ -105,11 +105,11 @@ redactReactEvent ev pl = ReactionEvent <$> redactEvent (getReactionEvent ev) pl
 -- Prompt the player to react, Maybe signals choosing to not buy
 playOneReaction'
   :: (Members '[DoReaction, PlayerIO, Obscure, GameRules, BoardStateRead] r)
-  => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r (Maybe ()) -> Sem r (Maybe ())
-playOneReaction' player ceff ma if_invalid = do
+  => Player -> CardEffects (Sem rinitial) a -> Maybe a -> [Card] -> Sem r (Maybe (Card, ())) -> Sem r (Maybe (Card, ()))
+playOneReaction' player ceff ma used if_invalid = do
   let realEvent = reactionEvent ceff ma
   hand <- getHand player
-  validCards <- filterM (\c -> isRight <$> canReact player c realEvent) hand
+  validCards <- filterM (\c -> isRight <$> canReact player c realEvent) (hand \\ used)
   redacted <- redactReactEvent realEvent player
   mreact <- getPlayerReaction player redacted validCards
   case mreact of
@@ -118,16 +118,22 @@ playOneReaction' player ceff ma if_invalid = do
      moutcome <- doReaction player card (reactionEvent ceff ma)
      case moutcome of
       Left _   -> if_invalid
-      Right outcome -> pure $ Just outcome
+      Right outcome -> pure $ Just (card, outcome)
   where
     isRight (Right _) = True
     isRight (Left _)  = False
 
-playOneReaction :: (Member DoReaction r, Member GameRules r, Member BoardStateRead r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinnitial) a -> Maybe a -> Sem r (Maybe ())
-playOneReaction pl ceff ma = fix $ playOneReaction' pl ceff ma
+playOneReaction :: (Member DoReaction r, Member GameRules r, Member BoardStateRead r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinnitial) a -> Maybe a -> [Card] -> Sem r (Maybe (Card, ()))
+playOneReaction pl ceff ma used = fix $ playOneReaction' pl ceff ma used
 
-playerReact :: (Member DoReaction r, Member GameRules r, Member BoardStateRead r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinitial) a -> Maybe a -> Sem r [()]
-playerReact pl ceff ma = unfoldM (playOneReaction pl ceff ma)
+playerReact :: (Member DoReaction r, Member GameRules r, Member BoardStateRead r, Member PlayerIO r, Member Obscure r) => Player -> CardEffects (Sem rinnitial) a -> Maybe a -> Sem r [()]
+playerReact pl ceff ma = go []
+  where
+    go used = do
+      mresult <- playOneReaction pl ceff ma used
+      case mresult of
+        Nothing            -> pure []
+        Just (card, outcome) -> (outcome :) <$> go (card : used)
 
 playerReacts :: Members '[DoReaction, BoardStateRead, GameRules, CardEffects, PlayerIO, Obscure] r => Player -> CardEffects (Sem rinitial) a -> Sem r a
 playerReacts player cardEff = do
@@ -136,7 +142,7 @@ playerReacts player cardEff = do
   _ <- playerReact player cardEff (Just ret) -- "after reactions"
   pure ret
 
-injectReaction :: Members '[BoardStateRead, GameRules, BoardStateRead, PlayerIO, CardEffects, Obscure] r => Sem r a -> Sem (DoReaction:r) a
+injectReaction :: Members '[BoardStateRead, GameRules, PlayerRoster, PlayerIO, CardEffects, Obscure] r => Sem r a -> Sem (DoReaction:r) a
 injectReaction program = do
   players' <- getPlayers
   let players = Map.keys players' -- TODO: This isn't correct, we need the current player's turn (NOT the card effect player). It doesn't matter much for base dominion though.
@@ -146,50 +152,36 @@ injectReaction program = do
 calculateVP :: Int -> VictoryPoints -> Int
 calculateVP total_cards (VictoryPoints plain gardens) = plain + gardens * div total_cards 10
 
+interpPlayerRoster :: Member (State GameState) r => InterpreterFor PlayerRoster r
+interpPlayerRoster = interpret $ \case
+  GetPlayers -> flip constMap () <$> (all_players <$> get)
+
 interpStateRead :: Members '[Stacks, State GameState] r => Sem (BoardStateRead : r) a -> Sem r a
 interpStateRead = interpret $ \case
-  GetPlayers -> flip constMap () <$> (all_players <$> get)
   GetVP pl -> do
-    playerCards <- join <$> mapM (justGetStack . PlayerCard pl) allPositions
+    playerCards <- join <$> mapM (justGetPlayerStack pl) allPositions
     pure . calculateVP (length playerCards). mconcat . fmap getCardVP $ playerCards
-  GetHand pl -> justGetStack (PlayerCard pl PlayerHand)
-  GetDeck pl -> justGetStack (PlayerCard pl PlayerDeck)
-  GetTopCard pl -> flip (!?) (0::Int) <$> justGetStack (PlayerCard pl PlayerDeck)
-  GetTopNCard pl n -> flip (!?) n <$> justGetStack (PlayerCard pl PlayerDeck)
-  GetDiscardPile pl -> justGetStack (PlayerCard pl PlayerDiscardPile)
-  IsGameOver -> do
-    emptyPiles <- numEmptySupplies
-    provinces <- justGetStack (Supply Province)
-    pure $ null provinces || emptyPiles >= 3
+  GetHand pl -> justGetPlayerStack pl PlayerHand
+  GetDeck pl -> justGetPlayerStack pl PlayerDeck
+  GetDiscardPile pl -> justGetPlayerStack pl PlayerDiscardPile
+  GetSupply -> Map.foldrWithKey bah mempty <$> seeStackMap -- If I don't need this to return a Map I can just precomposition
+    where
+      bah :: Position -> [Card] -> Map.Map CardFace Int -> Map.Map CardFace Int
+      bah (Supply cf) y = mappend $ Map.singleton cf (length y)
+      bah _ _ = id
 
-interpPlayerIO :: Member DataSerialised r => Sem (PlayerIO : r) a -> Sem r a
-interpPlayerIO = interpret (\eff -> dataOut (encode eff) >> untilJust (has @FromJSON eff decode <$> dataIn))
+runDispatch :: Members '[PlayerRoster, BoardStateRead, State GameState] r => Sem (Dispatch ': r) a -> Sem r a
+runDispatch = interpretH $ \case
+  ApplyOthers activator f -> do
+    allPlayers <- getPlayers
+    gs <- get @GameState
+    let isBlocked p  = Map.findWithDefault False p (blocks gs)
+        others       = filter (/= activator) (Map.keys allPlayers)
+        targets      = filter (not . isBlocked) others
+        bweh         = mapM (liftToSnd f) targets
+    runTSimple (Map.fromList <$> bweh)
 
-interpPlayerIONoReact :: Member DataSerialised r => Sem (PlayerIO : r) a -> Sem r a
-interpPlayerIONoReact = interpret $ \case
-  eff@(SendInfo{}) -> dataOut (encode eff)
-  (GetPlayerReaction{}) -> pure Nothing
-  eff -> (dataOut (encode eff) >> untilJust (has @FromJSON eff decode <$> dataIn))
-
-serialiseToTerminal :: Member (Embed IO) r => InterpreterFor DataSerialised r
-serialiseToTerminal = interpret $ \case
-  DataIn -> embed $ C.fromStrict <$> C.getLine
-  DataOut bstr -> embed $ LC.putStrLn bstr
-
-maybePossible :: Members '[DataSerialised] r => PlayerIO (Sem rin) x -> [x] -> Sem r (Maybe x)
-maybePossible eff poss = do
-  bstr <- dataIn
-  case traceShowId $ decode @Int bstr of
-    Just n -> pure $ poss !? n
-    Nothing -> pure $ has @FromJSON eff $ decode bstr
-
-interpPlayerIOChoice :: Members '[ValidResponses, DataSerialised] r => InterpreterFor PlayerIO r
-interpPlayerIOChoice = interpret $ \eff -> do
-  dataOut (encode eff)
-  possibilities <- getValidResponses (playerIOmapR eff)
-  case possibilities of
-    [x] -> pure x
-    _ -> do
-      dataOut . LC.pack $ "Possibilities:"
-      has @ToJSON eff $ forM_ (zip [0::Int ..] possibilities) (\(x,y) -> dataOut . mappend (LC.pack . show $ x) . encode $ y)
-      untilJust $ maybePossible eff possibilities
+  ApplyAll action -> do
+    allPlayers <- Map.keys <$> getPlayers
+    let    bweh         = mapM (liftToSnd action) allPlayers
+    runTSimple (Map.fromList <$> bweh)

@@ -22,11 +22,13 @@ import Effects.Log
 
 data Stacks m a where
   ActivePositions :: Stacks m [Position]
+  SeeStackMap :: Stacks m (Map Position [Card])
   GetStack :: Position -> Stacks m (Maybe [Card])
   ShuffleStack :: Position -> Stacks m ()
   StackOnto :: Position -> Position -> Stacks m ()
   DrawTo :: Position -> Position -> Stacks m (Maybe Card)
   CardToPos :: Card -> Position -> Stacks m ()
+  GetTopN :: Position -> Int -> Stacks m [Card]
 makeSem ''Stacks
 deriving instance Show (Stacks m a)
 
@@ -39,6 +41,13 @@ justGetStack p = do
     mstack <- getStack p
     maybe undefined pure mstack
 
+-- TODO: Make these not use undefined
+justGetPlayerStack :: Member Stacks r => Player -> PlayerPosition -> Sem r [Card]
+justGetPlayerStack p ppos = justGetStack (PlayerCard p ppos)
+
+justGetProvinceStack :: Member Stacks r => Sem r [Card]
+justGetProvinceStack = justGetStack (Supply Province)
+
 isSupply :: Position -> Maybe CardFace
 isSupply (Supply c) = Just c
 isSupply _ = Nothing
@@ -46,45 +55,54 @@ isSupply _ = Nothing
 getSupplies :: [Position] -> [CardFace]
 getSupplies = mapMaybe isSupply
 
-activeSupplies :: Member Stacks r => Sem r [CardFace]
-activeSupplies = getSupplies <$> activePositions
-
-emptySupplies :: Member Stacks r => Sem r [CardFace]
-emptySupplies = do
-    cards <- activeSupplies
-    emptyPiles <- forM cards (\face -> (\x -> (face, null <$> x)) <$> getStack (Supply face))
-    pure . fmap fst . filter ((== Just True) . snd) $ emptyPiles
-
-numEmptySupplies :: Member Stacks r => Sem r Int
-numEmptySupplies = length <$> emptySupplies
-
 canDraw :: (Member Stacks r) => Player -> Sem r Bool -- TODO: Add to interface?
 canDraw pl = do
   deck <- justGetStack (PlayerCard pl PlayerDeck)
   disc <- justGetStack (PlayerCard pl PlayerDiscardPile)
   pure . not . null $ deck ++ disc
 
-putPlay :: Member Stacks r => Player -> Card -> Sem r ()
-putPlay pl c = cardToPos c (PlayerCard pl PlayerInPlay)
+putPlay' :: Member Stacks r => Player -> Card -> Sem r ()
+putPlay' pl c = cardToPos c (PlayerCard pl PlayerInPlay)
+
+data PlayerRoster m a where
+  GetPlayers :: PlayerRoster m (Map Player ())
+makeSem ''PlayerRoster
 
 data BoardStateRead m a where
-  GetPlayers :: BoardStateRead m (Map Player ())
   GetVP :: Player -> BoardStateRead m Int
   GetHand :: Player -> BoardStateRead m [Card]
   GetDeck :: Player -> BoardStateRead m [Card]
-  GetTopCard :: Player -> BoardStateRead m (Maybe Card)
-  GetTopNCard :: Player -> Int -> BoardStateRead m (Maybe Card)
+  GetSupply :: BoardStateRead m (Map CardFace Int)
   GetDiscardPile :: Player -> BoardStateRead m [Card]
-  IsGameOver :: BoardStateRead m Bool
 makeSem ''BoardStateRead
 deriving instance Show (BoardStateRead m a)
 
-applyToOthers :: (Member BoardStateRead r) => Player -> (Player -> Sem r a) -> Sem r (Map Player a)
-applyToOthers player f = applyTo f (dupKey . Map.delete player <$> getPlayers)
+activeSupplies :: Member BoardStateRead r => Sem r [CardFace]
+activeSupplies = Map.keys . Map.filter (>0) <$> getSupply
 
-applyToAll :: (Member BoardStateRead r) => (Player -> Sem r a) -> Sem r (Map Player a)
-applyToAll f = applyTo f (dupKey <$> getPlayers)
+emptySupplies :: Member BoardStateRead r => Sem r [CardFace]
+emptySupplies = Map.keys . Map.filter (==0) <$> getSupply
 
+numEmptySupplies :: Member BoardStateRead r => Sem r Int
+numEmptySupplies = length <$> emptySupplies
+
+data Dispatch m a where
+  ApplyOthers :: Player -> (Player -> m a) -> Dispatch m (Map Player a)
+  ApplyAll :: (Player -> m a) -> Dispatch m (Map Player a)
+makeSem ''Dispatch
+
+-- Higher order CardEffects
+-- applyToOthers :: (Member Dispatch r) => Player -> (Player -> Sem r a) -> Sem r (Map Player a)
+-- applyToOthers = undefined
+-- applyToOthers player f = applyTo f (dupKey . Map.delete player <$> getPlayers)
+
+-- Higher order CardEffects
+-- applyToAll :: (Member BoardStateRead r) => (Player -> Sem r a) -> Sem r (Map Player a)
+-- applyToAll = undefined
+-- applyToAll f = applyTo f (dupKey <$> getPlayers)
+
+getTopDeck :: Member CardEffects r => Player -> Sem r (Maybe Card)
+getTopDeck pl = (!? 0) <$> getTopDeckN pl 1
 
 data GameLoop m a where
   StartingResources :: Player -> GameLoop m ()
@@ -112,6 +130,7 @@ data GameRules m a where
     CanAct :: Player -> Card -> GameRules m (Either InvalidMove ())
     CanTreasure :: Player -> Card -> GameRules m (Either TreasureError Int)
     CanReact :: Player -> Card -> ReactionEvent Card -> GameRules m (Either InvalidReaction HasReaction)
+    IsGameOver :: GameRules m Bool
 makeSem ''GameRules
 
 data RandomShuffle m a where
@@ -171,7 +190,7 @@ data Correlation m a where
   MkCorrelation :: m a -> Correlation m a
 makeSem ''Correlation
 
-type CardSemantics' = forall r. Members [BoardStateRead, CardEffects, PlayerIO, Stacks] r => Player -> Card -> Sem r ()
+type CardSemantics' = forall r. Members [BoardStateRead, CardEffects, Dispatch, PlayerIO] r => Player -> Card -> Sem r ()
 type CardReactionSemantics' = forall r. (Members '[CardEffects] r) => Player -> Card -> Reaction (Sem r) ()
 newtype CardSemantics = CardSemantics {getSemantics :: CardSemantics'}
 newtype CardReactionSemantics = CardReactionSemantics {getReactionSemantics :: CardReactionSemantics'}

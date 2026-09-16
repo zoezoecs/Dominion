@@ -34,6 +34,8 @@ data CardEffects' card m a where
   DrawOnce :: Player -> CardEffects' card m (Maybe card)  -- Note Maybe signals no cards in both draw AND discard
   BlockOne :: Player -> card -> CardEffects' card m () -- Blocks the next attack
   Discard :: Player -> card -> CardEffects' card m () -- NOTE: None of these are "discard FROM HAND" or anything
+  PutInPlay :: Player -> card -> CardEffects' card m ()
+  GetTopDeckN :: Player -> Int -> CardEffects' card m [card]
   TrashCard :: Player -> card -> CardEffects' card m ()
   Reveal :: Player -> card -> CardEffects' card m ()
   TopDeck :: Player -> card -> CardEffects' card m ()
@@ -57,6 +59,8 @@ getEffectPlayer (TrashCard pl _) = Just pl
 getEffectPlayer (Reveal pl _) = Just pl
 getEffectPlayer (TopDeck pl _) = Just pl
 getEffectPlayer (GainCardTo pl _ _) = Just pl
+getEffectPlayer (PutInPlay pl _) = Just pl
+getEffectPlayer (GetTopDeckN pl _) = Just pl
 
 
 traverse'' :: (Applicative f, Traversable f1) => (c1 -> f c2) -> EventAnswer f1 c1 -> f (EventAnswer f1 c2)
@@ -71,6 +75,8 @@ traverse'' f (EventAnswer (TrashCard pl c) x) = fmap (\a -> EventAnswer (TrashCa
 traverse'' f (EventAnswer (Reveal pl c) x) = fmap (\a -> EventAnswer (Reveal pl a) x) (f c)
 traverse'' f (EventAnswer (TopDeck pl c) x) = fmap (\a -> EventAnswer (TopDeck pl a) x) (f c)
 traverse'' f (EventAnswer (GainCardTo pl cf pos) x) = fmap (EventAnswer (GainCardTo pl cf pos)) (traverse (traverse f) x)
+traverse'' f (EventAnswer (PutInPlay pl c) x) = fmap (\a -> EventAnswer (PutInPlay pl a) x) (f c)
+traverse'' f (EventAnswer (GetTopDeckN pl n) x) = fmap (EventAnswer (GetTopDeckN pl n)) (traverse (traverse f) x)
 
 instance (Traversable f1) => Traversable (EventAnswer f1) where
     traverse = traverse''
@@ -90,7 +96,7 @@ deriveJSONGADT ''CardEffects'
 
 -- constraints-extras-0.4.0.2 deriveArgDict does not derive this because it does not correctly use the 
 -- same type variables for instances of card in the constraints and the rest of signature
-instance (c Int, c (), c (Maybe card), c (Either InvalidGain card)) 
+instance (c Int, c (), c (Maybe card), c [card], c (Either InvalidGain card)) 
     => Has c (CardEffects' card m) where
   has eff k = case eff of
     ModifyActions{}  -> k
@@ -104,6 +110,8 @@ instance (c Int, c (), c (Maybe card), c (Either InvalidGain card))
     TrashCard{}      -> k
     Reveal{}         -> k
     TopDeck{}        -> k
+    PutInPlay{}      -> k
+    GetTopDeckN{}    -> k
 
 -- dependent-sum-template-0.2.0.1 does not derive this because it cannot derive the Eq card constraint
 instance Eq card => GEq (CardEffects' card m) where

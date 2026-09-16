@@ -107,6 +107,10 @@ interpGameRules = interpret $ \case
                   | not cond_true            = Left ConditionNotMet
                   | otherwise                = Right has_reac
             pure result
+  IsGameOver -> do
+    emptyPiles <- numEmptySupplies
+    provinces <- justGetProvinceStack
+    pure $ null provinces || emptyPiles >= 3
 
 runValidResponses :: Members '[BoardStateRead, Stacks, GameRules] r => InterpreterFor ValidResponses r
 runValidResponses = interpret $ \case

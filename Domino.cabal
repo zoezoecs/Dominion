@@ -90,6 +90,7 @@ library
                    Interpreters.Stacks,
                    Interpreters.DoRedact,
                    Interpreters.GameLogic,
+                   Interpreters.UserInterface,
                    Interpreters.Other,
                    Playing.HigherOrder,
                    Playing.InterpretIntercept,

@@ -37,7 +37,7 @@ redactLogEff ev pl = logEvAnswer <$> redactEvent (evAnswerLog ev) pl
 -- than it would be to make another existential type, which wouldn't even work properly with the effects system
 -- So the logging for the non effects is slightly different to logging the LogEffect cardeffect, for which we have a traversable instance.
 -- That is why we kind of have two separate log redaction mechanisms, one for cardeffects, and one for the things that aren't cardeffects
-logToPlayerLog :: (Members '[LogToPlayer PotentiallyObscured, BoardStateRead, Obscure] r) => Sem (Log Card : r) a -> Sem r a
+logToPlayerLog :: (Members '[LogToPlayer PotentiallyObscured, Dispatch, BoardStateRead, PlayerRoster, Obscure] r) => Sem (Log Card : r) a -> Sem r a
 logToPlayerLog = interpret $ \case
   LogPlayerRoundStart player -> logAll0 (LogPlayerRoundStart player)
   LogBuy player cf -> logAll0 (LogBuy player cf)
@@ -55,11 +55,11 @@ logToPlayerLog = interpret $ \case
     dontRedactCard :: Member Obscure r => Card -> Sem r PotentiallyObscured
     dontRedactCard card = fmap (PObscured . Left . \tid -> (card,tid)) . getTempId $ card
 
-    logAll0 :: (Members '[LogToPlayer PotentiallyObscured, BoardStateRead] r) => (forall card. Log card (Sem r) ()) -> Sem r ()
-    logAll0 = void . applyToAll . logToPlayer
+    logAll0 :: (Members '[LogToPlayer PotentiallyObscured, Dispatch, BoardStateRead] r) => (forall card. Log card (Sem r) ()) -> Sem r ()
+    logAll0 = void . applyAll . logToPlayer
 
-    logAll :: (Members '[LogToPlayer PotentiallyObscured, Obscure, BoardStateRead] r) => (forall card. card -> Log card (Sem r) ()) -> Card -> Sem r ()
-    logAll f x = void $ applyToAll . logToPlayer . f <$> dontRedactCard x
+    logAll :: (Members '[LogToPlayer PotentiallyObscured, Dispatch, Obscure, BoardStateRead] r) => (forall card. card -> Log card (Sem r) ()) -> Card -> Sem r ()
+    logAll f x = void $ applyAll . logToPlayer . f <$> dontRedactCard x
 
 logPlayerToPlayerIO :: Member PlayerIO r => Sem (LogToPlayer PotentiallyObscured : r) a -> Sem r a
 logPlayerToPlayerIO = transform @_ @PlayerIO (\(LogToPlayer eff pl) -> SendInfo pl eff)

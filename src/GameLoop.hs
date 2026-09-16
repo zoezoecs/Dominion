@@ -61,7 +61,7 @@ newHand :: Member GameLoop r => Player -> Sem r [Card]
 newHand player = discardHandCleanup player >> drawTurnStart player 5
 
 -- Bool signals game over
-playerRound :: Members '[GameLoop, BoardStateRead, PlayerIO] r => Player -> Sem r Bool
+playerRound :: Members '[GameLoop, GameRules, BoardStateRead, PlayerIO] r => Player -> Sem r Bool
 playerRound player =
   startingResources player >>
   repeatAction (playOneAction player) >>
@@ -70,7 +70,7 @@ playerRound player =
   newHand player >>
   isGameOver
 
-setInitialGameState :: Members '[GameLoop, CardEffects, BoardStateRead] r => Sem r ()
+setInitialGameState :: Members '[GameLoop, CardEffects, PlayerRoster] r => Sem r ()
 setInitialGameState = do
   players <- Map.keys <$> getPlayers
   replicateM_ 5 $ forM players (`gainCard` Copper)
@@ -79,7 +79,7 @@ setInitialGameState = do
 playUntilGameOver :: Monad m => (player -> m Bool) -> [player] -> m ()
 playUntilGameOver f xs = void $ anyM f xs
 
-playGame :: Members '[GameLoop, BoardStateRead, PlayerIO, CardEffects] r => Sem r ()
+playGame :: Members '[GameLoop, GameRules, BoardStateRead, PlayerRoster, PlayerIO, CardEffects] r => Sem r ()
 playGame = do
     players <- Map.keys <$> getPlayers
     playUntilGameOver playerRound (cycle players)

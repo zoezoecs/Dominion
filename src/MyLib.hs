@@ -63,7 +63,7 @@ traceState = intercept @(State GameState) $ \case
   Get -> get
   Put x -> put $ traceShowId x
 
-injecting :: Members '[GameRules, Log Card, BoardStateRead, PlayerIO, Obscure] r => Sem (CardEffects:r) a -> Sem (CardEffects:r) a
+injecting :: Members '[GameRules, Log Card, PlayerRoster, BoardStateRead, PlayerIO, Obscure] r => Sem (CardEffects:r) a -> Sem (CardEffects:r) a
 injecting = logEffects . interpDoReaction . injectReaction
 
 main_ :: Bool -> Int -> PileConfig [] -> Map Position [Card] -> GameState -> IO ()
@@ -80,6 +80,8 @@ main_ initGame randSeed pileconfig0 stack0 gs0 = runM .
              evalState @GameState gs0 .
              traceState .
              interpStateRead .
+             interpPlayerRoster .
+             runDispatch .
 
              -- runOutputList .
              runCorrelation . 
@@ -108,18 +110,30 @@ mainTest = main_ True 4 (stacksConfig pl) (initStacks pl cf) (initGS pl)
     pl = MkPlayer <$> [1..n]
     cf = [Bandit, Moat, ThroneRoom, Village, Militia, Vassal, Sentry, Mine]
 
+moatTest :: IO ()
+moatTest = main_ False 4 (stacksConfig pl) stacks0 (initGS pl)
+  where
+    n = 3
+    pl@[p1, p2, p3] = MkPlayer <$> [1..n]
+    cf = [Bandit, Moat, ThroneRoom, Village, Militia, Vassal, Sentry, Mine]
+    hand1 = [MkCard 9001 Militia, MkCard 9002 Copper, MkCard 9003 Copper, MkCard 9004 Copper, MkCard 9005 Copper]
+    hand2 = [MkCard 9006 Moat,    MkCard 9007 Copper, MkCard 9008 Copper, MkCard 9009 Copper, MkCard 9010 Copper]
+    hand3 = [MkCard 9011 Copper,  MkCard 9012 Copper, MkCard 9013 Copper, MkCard 9014 Copper, MkCard 9015 Copper]
+    stacks0 = Map.insert (PlayerCard p1 PlayerHand) hand1
+            . Map.insert (PlayerCard p2 PlayerHand) hand2
+            . Map.insert (PlayerCard p3 PlayerHand) hand3
+            $ initStacks pl cf
 -- TODO: 
 -- Correctness bugs, not high priority:
 --   Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions? Relevant for player logging and especially reactions.
---   Fix looking at top n cards with drawing
 --   Reactions begin relative to current player
 --   Consider rules validation locations and coverage (c.f. Stacks and CardEffects impossible effect defaulting to signalled ignore)
 --   Implement scoped for the cards that use it
 
 -- Correctness bugs, high priority
---   Defending against attacks
 --   Implement Merchant
---   Deidentify for reactions
+--   Fix looking at top n cards with drawing
+--   Queries after blocked attack
 
 -- Elegance
 --   See if I can fix the effect hierarchy (stacks, boardstateread, other things?)
