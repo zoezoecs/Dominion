@@ -4,8 +4,13 @@
 
 - ignore: { name: "Use tuple-section" }
 - ignore: { name: Use if }
+- ignore: {within: Internal.*}
+- ignore: {within: Playing.*}
+
 
 - functions:
+  - {name: MkPlayer, within: []} # Supposed to be hidden
+
   - {name: unsafeDupablePerformIO, within: []} # Unsafe
   - {name: unsafeInterleaveIO, within: []} # Unsafe
   - {name: unsafeFixIO, within: []} # Unsafe

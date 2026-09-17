@@ -3,13 +3,10 @@ module Interpreters.Other where
 import Polysemy
 import Polysemy.State
 
-import Control.Arrow
 import Control.Monad
 import Data.Monoid
 import Data.Function
-import Data.Constraint.Extras
 import qualified Data.Map as Map
-import Debug.Trace
 import Data.List ((\\))
 
 import Base
@@ -18,44 +15,36 @@ import Effects
 import Cards
 import Interpreters.DoRedact
 
-blockedDefault :: CardEffects' card m a -> a
-blockedDefault (ModifyActions {})    = 0        -- or: don't intercept these at all, see note below
-blockedDefault (ModifyBuys {})       = 0
-blockedDefault (ModifyCurrency {})   = 0
-blockedDefault (ActivateCard {})     = ()
-blockedDefault (DrawOnce {})         = Nothing
-blockedDefault (BlockOne {})         = ()
-blockedDefault (Discard {})          = ()
-blockedDefault (TrashCard {})        = ()
-blockedDefault (Reveal {})           = ()
-blockedDefault (TopDeck {})          = ()
-blockedDefault (PutInPlay{})         = ()
-blockedDefault (GainCardTo {})       = Left GainError
-blockedDefault (GetTopDeckN{})       = []
+runDispatch :: Members '[PlayerRoster, BoardStateRead, State GameState] r => Bool -> Sem (Dispatch ': r) a -> Sem r a
+runDispatch check_blocks = interpretH $ \case
+  ApplyOthers activator f -> do
+    allPlayers <- getPlayers
+    gs <- get @GameState
+    let isBlocked p  = Map.findWithDefault False p (blocks gs)
+        others       = filter (/= activator) (Map.keys allPlayers)
+        targets      = filter (not . isBlocked) others
+        bweh         = mapM (liftToSnd f) (if check_blocks then targets else others)
+    runTSimple (Map.fromList <$> bweh)
 
-withBlocking
-  :: (Members '[Stacks, State GameState, PlayerIO, BoardStateRead, CardEffects] r)
-  => Sem r a -> Sem r a
-withBlocking action = do
-  gs <- get
-  let blockedNow = blocks gs
-  modify (\g -> g { blocks = Map.map (const False) (blocks g) })
-  intercept @CardEffects (\ceff -> case getEffectPlayer ceff of
-      Just target | Map.findWithDefault False target blockedNow -> pure (blockedDefault ceff)
-      _ -> send (cardEffectrMap ceff)
-    ) action
+  ApplyAll f -> do
+    allPlayers <- Map.keys <$> getPlayers
+    gs <- get @GameState
+    let isBlocked p  = Map.findWithDefault False p (blocks gs)
+        targets      = filter (not . isBlocked) allPlayers
+        bweh         = mapM (liftToSnd f) (if check_blocks then targets else allPlayers)
+    runTSimple (Map.fromList <$> bweh)
 
 runCardEffectForActivation
-  :: (Members '[Stacks, Dispatch, State GameState, PlayerIO, BoardStateRead, CardEffects] r)
+  :: (Members '[Dispatch, State GameState, PlayerIO, BoardStateRead, CardEffects, PlayerRoster] r)
   => Card -> Player -> Sem r ()
 runCardEffectForActivation c pl
-  | isAttack c = withBlocking body
-  | otherwise  = body
+  | isAttack c = runDispatch True body
+  | otherwise  = runDispatch False body
   where
     body = getEffect (getFace c) pl c
 
 interpCardEffects ::
-  (Members '[Stacks, Dispatch, State GameState, PlayerIO, BoardStateRead] r1,
+  (Members '[Stacks, Dispatch, State GameState, PlayerIO, BoardStateRead, PlayerRoster] r1,
   Members '[Stacks, State GameState, PlayerIO, BoardStateRead] r2) =>
   (forall x. Sem (CardEffects : r1) x -> Sem (CardEffects : r2) x) ->
   Sem (CardEffects : r1) a -> Sem r2 a
@@ -71,6 +60,7 @@ interpCardEffects inject = interpCardEffects' . inject
       -- Moat check and reaction checks. Isn't it weird c appears twice? 
       -- Activating cards, even if they aren't by playing from hand, FIRST moves them into play. c.f. Vassal, Throne Room.
       DrawOnce pl -> drawTo (PlayerCard pl PlayerDeck) (PlayerCard pl PlayerHand)
+      GetTopDeckN pl n -> getTopN (PlayerCard pl PlayerDeck) n
       BlockOne pl _ -> void $ modify (setBlocks pl True)
       Discard pl c -> void $ cardToPos c (PlayerCard pl PlayerDiscardPile)
       TrashCard _ c -> void $ cardToPos c Trash
@@ -169,19 +159,3 @@ interpStateRead = interpret $ \case
       bah :: Position -> [Card] -> Map.Map CardFace Int -> Map.Map CardFace Int
       bah (Supply cf) y = mappend $ Map.singleton cf (length y)
       bah _ _ = id
-
-runDispatch :: Members '[PlayerRoster, BoardStateRead, State GameState] r => Sem (Dispatch ': r) a -> Sem r a
-runDispatch = interpretH $ \case
-  ApplyOthers activator f -> do
-    allPlayers <- getPlayers
-    gs <- get @GameState
-    let isBlocked p  = Map.findWithDefault False p (blocks gs)
-        others       = filter (/= activator) (Map.keys allPlayers)
-        targets      = filter (not . isBlocked) others
-        bweh         = mapM (liftToSnd f) targets
-    runTSimple (Map.fromList <$> bweh)
-
-  ApplyAll action -> do
-    allPlayers <- Map.keys <$> getPlayers
-    let    bweh         = mapM (liftToSnd action) allPlayers
-    runTSimple (Map.fromList <$> bweh)

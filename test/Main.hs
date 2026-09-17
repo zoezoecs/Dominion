@@ -34,7 +34,7 @@ runModify n a = fmap (($ a) . appEndo . foldMap Endo) . replicateM n
 countRandomShuffle  :: (Ord a, Member RandomShuffle r) => Int -> [a] -> Sem r (Map.Map [a] Int)
 countRandomShuffle n x = runModify n initial modify
   where
-    initial = Map.fromList (map (\z -> (z, 0)) (permutations x))
+    initial = Map.fromList (fmap (\z -> (z, 0)) (permutations x))
     modify = fmap (Map.adjust (+1)) (randomShuffle x)
 
 prop_randomShuffleUniform :: (Ord a, Show a, Member RandomShuffle r) => Int -> [a] -> PropertyM (Sem r) Bool

@@ -15,6 +15,7 @@ redactEvent = \case
   a@(EventAnswer (DrawOnce pl) _) ->       logRedacted pl a
   a@(EventAnswer (BlockOne _ _) _) ->      logToAll a
   a@(EventAnswer (PutInPlay _ _) _) ->     logToAll a
+  a@(EventAnswer (GetTopDeckN pl _) _) ->  logRedacted pl a
   a@(EventAnswer (Discard pl _) _) ->      logRedacted pl a
   a@(EventAnswer (TrashCard pl _) _) ->    logRedacted pl a
   a@(EventAnswer (Reveal _ _) _) ->        logToAll a

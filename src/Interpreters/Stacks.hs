@@ -8,7 +8,6 @@ import Control.Monad
 import Data.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Debug.Trace
 
 import Types
 import Effects

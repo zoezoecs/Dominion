@@ -4,7 +4,6 @@ module Effects.Effects where
 
 import Polysemy
 import Polysemy.Input
-import Control.Monad
 import qualified Data.ByteString.Lazy as L
 import Data.Maybe
 import Data.Map (Map)
@@ -91,18 +90,8 @@ data Dispatch m a where
   ApplyAll :: (Player -> m a) -> Dispatch m (Map Player a)
 makeSem ''Dispatch
 
--- Higher order CardEffects
--- applyToOthers :: (Member Dispatch r) => Player -> (Player -> Sem r a) -> Sem r (Map Player a)
--- applyToOthers = undefined
--- applyToOthers player f = applyTo f (dupKey . Map.delete player <$> getPlayers)
-
--- Higher order CardEffects
--- applyToAll :: (Member BoardStateRead r) => (Player -> Sem r a) -> Sem r (Map Player a)
--- applyToAll = undefined
--- applyToAll f = applyTo f (dupKey <$> getPlayers)
-
 getTopDeck :: Member CardEffects r => Player -> Sem r (Maybe Card)
-getTopDeck pl = (!? 0) <$> getTopDeckN pl 1
+getTopDeck pl = listToMaybe <$> getTopDeckN pl 1
 
 data GameLoop m a where
   StartingResources :: Player -> GameLoop m ()

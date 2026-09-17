@@ -112,7 +112,7 @@ interpGameRules = interpret $ \case
     provinces <- justGetProvinceStack
     pure $ null provinces || emptyPiles >= 3
 
-runValidResponses :: Members '[BoardStateRead, Stacks, GameRules] r => InterpreterFor ValidResponses r
+runValidResponses :: Members '[BoardStateRead, GameRules] r => InterpreterFor ValidResponses r
 runValidResponses = interpret $ \case
   GetValidResponses (GetAction pl) -> do
     handCards <- getHand pl

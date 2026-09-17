@@ -81,7 +81,7 @@ main_ initGame randSeed pileconfig0 stack0 gs0 = runM .
              traceState .
              interpStateRead .
              interpPlayerRoster .
-             runDispatch .
+             runDispatch False .
 
              -- runOutputList .
              runCorrelation . 
@@ -123,33 +123,34 @@ moatTest = main_ False 4 (stacksConfig pl) stacks0 (initGS pl)
             . Map.insert (PlayerCard p2 PlayerHand) hand2
             . Map.insert (PlayerCard p3 PlayerHand) hand3
             $ initStacks pl cf
+
+-- Tests to write:
+-- Moat works (players dont get attacked, dont get prompted)
+-- Sentry works (if one card in deck, big discard, then they draw 2 cards)
+-- Information redacting tests
+
+-- fix stacks location stuff
+
 -- TODO: 
 -- Correctness bugs, not high priority:
 --   Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions? Relevant for player logging and especially reactions.
 --   Reactions begin relative to current player
 --   Consider rules validation locations and coverage (c.f. Stacks and CardEffects impossible effect defaulting to signalled ignore)
 --   Implement scoped for the cards that use it
+--   Really any interpreters should not be using each other. The blocking mechanism is bad for this, and so is Stacks calling itself unnecessarily
 
 -- Correctness bugs, high priority
 --   Implement Merchant
---   Fix looking at top n cards with drawing
---   Queries after blocked attack
 
 -- Elegance
---   See if I can fix the effect hierarchy (stacks, boardstateread, other things?)
 --   Prune useless effect constructors and add useful ones
---   GameRules, ValidResponses, GameLoop, reactions, and logging via intercepting might all be a bit over engineered
---   Is the scoping mechanism really needed in full generality? We could use basically another unique draw thing but idk how to get that to the right place.
+--   GameRules, ValidResponses, GameLoop, reactions, scoping, and logging via intercepting might all be a bit over engineered
 --   Splitting interpreter logic correctly
 --   Kill partial functions
---   How to ensure that players can only "affect the cards in their hand" when thats whats meant to happen
 
 -- Type security/guarantees/interface security
---   CardSemantics shouldn't get stacks
 --   Ensuring we can actually get a gain if we check for it? And making that harder to mess up.
 --   Contract expressing the game logic?
---   Stacks and bad locations. Consider making a safer wrapper. Maybe have module based machinery to provide guaranteed accesses.
---   Players.
 --   Consider which tests are defining/fundamental/documenting, and which are kind of just thrown in as checks
 
 -- Future work (non essential for testing and playing)

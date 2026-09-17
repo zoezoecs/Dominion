@@ -7,10 +7,6 @@ module Effects.Log where
 
 import Data.Aeson.GADT.TH
 import Data.Aeson
--- import Data.Constraint.Extras
--- import Data.Type.Equality
--- import Data.GADT.Compare
--- import Data.Some.Newtype
 import Data.Functor.Identity
 
 import Types

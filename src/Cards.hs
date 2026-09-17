@@ -2,8 +2,6 @@ module Cards where
 
 import Polysemy
 import Control.Monad
-import Control.Monad.Loops
-import Data.Maybe
 import Data.Functor.Const
 import Data.List
 
