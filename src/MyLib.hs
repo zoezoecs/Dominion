@@ -55,8 +55,11 @@ createCards'' xs = join <$> mapM createCards' xs
 createCards :: Member (State Int) r => Map Position [(CardFace, Int)] -> Sem r (Map Position [Card])
 createCards = mapM createCards''
 
+initCardId :: Map Position [(CardFace, Int)] -> Map Position [Card]
+initCardId = run . evalState @Int 0 . createCards
+
 initStacks :: [Player] -> [CardFace] -> Map Position [Card]
-initStacks pl cf = run . evalState @Int 0 . createCards $ boardInitState pl cf
+initStacks pl cf = initCardId $ boardInitState pl cf
 
 traceState :: (Member (State (GameState)) r) => Sem r a -> Sem r a
 traceState = intercept @(State GameState) $ \case
@@ -116,13 +119,14 @@ moatTest = main_ False 4 (stacksConfig pl) stacks0 (initGS pl)
     n = 3
     pl@[p1, p2, p3] = MkPlayer <$> [1..n]
     cf = [Bandit, Moat, ThroneRoom, Village, Militia, Vassal, Sentry, Mine]
-    hand1 = [MkCard 9001 Militia, MkCard 9002 Copper, MkCard 9003 Copper, MkCard 9004 Copper, MkCard 9005 Copper]
-    hand2 = [MkCard 9006 Moat,    MkCard 9007 Copper, MkCard 9008 Copper, MkCard 9009 Copper, MkCard 9010 Copper]
-    hand3 = [MkCard 9011 Copper,  MkCard 9012 Copper, MkCard 9013 Copper, MkCard 9014 Copper, MkCard 9015 Copper]
-    stacks0 = Map.insert (PlayerCard p1 PlayerHand) hand1
-            . Map.insert (PlayerCard p2 PlayerHand) hand2
-            . Map.insert (PlayerCard p3 PlayerHand) hand3
-            $ initStacks pl cf
+    hand1 = [(Militia, 1), (Copper, 4)]
+    hand2 = [(Moat, 1),    (Copper, 4)]
+    hand3 = [(Copper, 1),  (Copper, 4)]
+    stacks0 = initCardId $ mconcat [
+              Map.singleton (PlayerCard p1 PlayerHand) hand1,
+              Map.singleton (PlayerCard p2 PlayerHand) hand2,
+              Map.singleton (PlayerCard p3 PlayerHand) hand3,
+              boardInitState pl cf]
 
 -- Tests to write:
 -- Moat works (players dont get attacked, dont get prompted)
@@ -132,12 +136,12 @@ moatTest = main_ False 4 (stacksConfig pl) stacks0 (initGS pl)
 -- fix stacks location stuff
 
 -- TODO: 
--- Correctness bugs, not high priority:
+-- Correctness thinking, not high priority:
 --   Consider partial/failing moves and how that affects things. Atomicity and unnecessary reactions? Relevant for player logging and especially reactions.
---   Reactions begin relative to current player
 --   Consider rules validation locations and coverage (c.f. Stacks and CardEffects impossible effect defaulting to signalled ignore)
+--   Reactions begin relative to current player
 --   Implement scoped for the cards that use it
---   Really any interpreters should not be using each other. The blocking mechanism is bad for this, and so is Stacks calling itself unnecessarily
+--   Really any interpreters should not be using each other, e.g. stacks
 
 -- Correctness bugs, high priority
 --   Implement Merchant
@@ -145,8 +149,8 @@ moatTest = main_ False 4 (stacksConfig pl) stacks0 (initGS pl)
 -- Elegance
 --   Prune useless effect constructors and add useful ones
 --   GameRules, ValidResponses, GameLoop, reactions, scoping, and logging via intercepting might all be a bit over engineered
---   Splitting interpreter logic correctly
 --   Kill partial functions
+--   Refactor/check reaction system
 
 -- Type security/guarantees/interface security
 --   Ensuring we can actually get a gain if we check for it? And making that harder to mess up.

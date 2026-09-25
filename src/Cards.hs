@@ -284,7 +284,6 @@ poacher player _ = void $ do
 harbinger :: CardSemantics'
 harbinger player _ = void $ do
   discards <- getDiscardPile player
-  sendStack PlayerDiscardPile discards
   mcard <- getMCardTEMP player discards
   forM_ mcard (topDeck player)
 

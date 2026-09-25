@@ -90,8 +90,6 @@ blah = traversableLaws (Proxy :: Proxy (EventAnswer Maybe))
 
 
 -- Effects to test:
---  CardEffects:
---    Unit tests, regression tests
 --  Stacks: 
 --    Invariants: Keys unchanged, set of values unchanged, shuffle preserves that piles set, stack preserves the append
 --    All write actions should change the state?
@@ -108,8 +106,9 @@ blah = traversableLaws (Proxy :: Proxy (EventAnswer Maybe))
 -- Interpreter tests: 
 --    Commutativity
 --    Ordering of emitted effects
+-- CardEffects: ???
 -- Game Logic (BoardStateRead, GameLoop, GameRules, actual game loop function):
---    Probably just integration tests, unit tests, regression tests. Make sure encoding issues like invalid players, cards not in supply, etc are covered well.
+--    Make sure encoding issues like invalid players, cards not in supply, etc are covered well.
 --    This is probably where all the bugs are going to be, so more attention needs to go here.
 -- Reactions:
 --    Unit tests, maybe make some extra card faces, check dominion wiki

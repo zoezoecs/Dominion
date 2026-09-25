@@ -78,11 +78,16 @@ interpPlayerIOChoice = interpret $ \eff -> do
   case possibilities of
     [x] -> pure x
     _   -> do
+      case getAddressedPlayer eff of
+        Just (MkPlayer pl) -> dataOut . LC.pack $ "\nPLAYER TURN:" <> show pl
+        Nothing -> pure ()
       dataOut . LC.pack $ "Possibilities:"
       has @Show eff $ forM_ (zip [0::Int ..] possibilities) $ \(i, y) ->
         dataOut . LC.pack $ show i ++ ": " ++ show y
       dataOut . LC.pack $ "Enter a number (or :help for inspection commands):"
-      untilJust $ maybePossible eff possibilities
+      res <- untilJust $ maybePossible eff possibilities
+      dataOut . LC.pack $ "\n"
+      pure res
 
 
 

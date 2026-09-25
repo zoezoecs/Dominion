@@ -57,7 +57,6 @@ interpCardEffects inject = interpCardEffects' . inject
       ActivateCard pl c -> do
         cardToPos c (PlayerCard pl PlayerInPlay)
         interpCardEffects inject (runCardEffectForActivation c pl)
-      -- Moat check and reaction checks. Isn't it weird c appears twice? 
       -- Activating cards, even if they aren't by playing from hand, FIRST moves them into play. c.f. Vassal, Throne Room.
       DrawOnce pl -> drawTo (PlayerCard pl PlayerDeck) (PlayerCard pl PlayerHand)
       GetTopDeckN pl n -> getTopN (PlayerCard pl PlayerDeck) n

@@ -135,7 +135,6 @@ runValidResponses = interpret $ \case
   GetValidResponses (GetMCardTEMP _ cards) -> pure $ Nothing:(Just <$> cards)
   GetValidResponses (GetNCardsTEMP _ n cards) -> pure $ filter ((==n) . length) (subsequences cards)
   GetValidResponses (GetUpToNCardsTEMP _ n cards) -> pure $ filter ((<=n) . length) (subsequences cards)
-  GetValidResponses (SendStack _ _) -> pure [()]
   GetValidResponses (GetCardFaceTEMP _ faces) -> pure faces
 
 -- Here we have a potential information leak
